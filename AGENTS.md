@@ -1,10 +1,10 @@
 # Repository Guidelines
 
 ## Design Philosophy
-Keep abstractions minimal. Favor the simplest interface that satisfies current lessons and resist speculative hooks; students should extend code incrementally as the curriculum demands.
+Keep abstractions minimal. Favor the simplest interface that satisfies current lessons and resist speculative hooks; students should extend code incrementally as the curriculum demands. Avoid staging or committing changes unless explicitly requested.
 
 ## Project Structure & Module Organization
-Follow idiomatic Go layout to keep components discoverable. Application entry points live under `cmd/<service>`; shared domain logic belongs in `internal/`, and reusable libraries in `pkg/`. Store configuration templates in `configs/` and sample data under `testdata/`. Keep documentation collateral in `docs/` so automation can publish it without touching code packages.
+Follow idiomatic Go layout to keep components discoverable. Application entry points live under `cmd/<service>`; shared domain logic belongs in `internal/`, and reusable libraries in `pkg/`. Store documentation in `docs/` so automation can publish it without touching code packages.
 
 ## Environment Setup
 Use Go 1.21 or newer and enable modules (`GO111MODULE=on`). Run `go mod tidy` whenever dependencies change to keep `go.sum` deterministic. Local tooling such as `gofmt`, `goimports`, and `staticcheck` should be available on your PATH.
