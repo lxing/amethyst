@@ -7,9 +7,10 @@ type Entry struct {
 	Tombstone bool
 }
 
-// Memtable defines the minimal interface required by the DB layer.
+// Memtable defines the interface for a memory-backed key-value store.
 type Memtable interface {
 	Put(seq uint64, key, value []byte) error
+	// Delete does not error if the key is missing.
 	Delete(seq uint64, key []byte) error
 	Get(key []byte) (Entry, bool)
 }

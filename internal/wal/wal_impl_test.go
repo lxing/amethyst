@@ -2,6 +2,7 @@ package wal_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWALAppendAndIterate(t *testing.T) {
+func TestAppendAndIterate(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "log.wal")
 
@@ -54,7 +55,7 @@ func TestWALAppendAndIterate(t *testing.T) {
 	}
 }
 
-func TestWALPersistsAcrossOpen(t *testing.T) {
+func TestPersistsAcrossOpen(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "log.wal")
 
@@ -101,4 +102,55 @@ func TestWALPersistsAcrossOpen(t *testing.T) {
 	}
 
 	require.Equal(t, []uint64{10, 11}, seqs)
+}
+
+func TestBulkAppendBatches(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "log.wal")
+
+	log, err := wal.NewWAL(path)
+	require.NoError(t, err)
+	defer log.Close()
+
+	const (
+		batches   = 4
+		perBatch  = 128
+		totalSeqs = batches * perBatch
+	)
+
+	expected := make([]wal.Entry, 0, totalSeqs)
+	seq := uint64(1)
+
+	for batch := 0; batch < batches; batch++ {
+		current := make([]wal.Entry, 0, perBatch)
+		for i := 0; i < perBatch; i++ {
+			entry := wal.Entry{
+				Type:  wal.EntryTypePut,
+				Seq:   seq,
+				Key:   []byte(fmt.Sprintf("b%02d-key-%03d", batch, i)),
+				Value: []byte(fmt.Sprintf("payload-%02d-%03d", batch, i)),
+			}
+			seq++
+			current = append(current, entry)
+			expected = append(expected, entry)
+		}
+		require.NoError(t, log.Append(context.Background(), current))
+	}
+
+	iter, err := log.Iterator(context.Background())
+	require.NoError(t, err)
+	defer iter.Close()
+
+	index := 0
+	for {
+		entry, ok, err := iter.Next()
+		require.NoError(t, err)
+		if !ok {
+			break
+		}
+		require.True(t, entry.Equal(expected[index]))
+		index++
+	}
+
+	require.Equal(t, len(expected), index)
 }

@@ -18,7 +18,7 @@ type DB struct {
 }
 
 func Open(ctx context.Context, opts Options) (*DB, error) {
-	return &DB{memtable: memtable.NewMemtable()}, nil
+	return &DB{memtable: memtable.NewMapMemtable()}, nil
 }
 
 func (d *DB) Put(ctx context.Context, key, value []byte) error {
