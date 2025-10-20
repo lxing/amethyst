@@ -16,7 +16,7 @@ Use Go 1.21 or newer and enable modules (`GO111MODULE=on`). Run `go mod tidy` wh
 - `go test -coverprofile=coverage.out ./...` followed by `go tool cover -html=coverage.out` reviews coverage hotspots before submitting a PR.
 
 ## Coding Style & Naming Conventions
-Run `gofmt -w` or your editor’s format-on-save before committing; tabs are expected for indentation. Organize imports with `goimports` to enforce standard grouping. Package names stay lowercase without underscores. Exported identifiers use PascalCase with concise nouns, while unexported helpers stay camelCase. Test functions follow `TestFeature` patterns that mirror the code under test.
+Run `gofmt -w` or your editor’s format-on-save before committing; tabs are expected for indentation. Organize imports with `goimports` to enforce standard grouping. Package names stay lowercase without underscores. Exported identifiers use PascalCase with concise nouns, while unexported helpers stay camelCase. Expand composite literals over multiple lines with aligned fields when they include nested structs or slices (see `internal/wal/wal_impl_test.go`). Test functions follow `TestFeature` patterns that mirror the code under test.
 
 ## Testing Guidelines
 Prefer table-driven tests in `*_test.go` files and keep fixtures in `testdata/`. Mock external services at package boundaries to avoid brittle network calls. Aim for ≥80% package-level coverage and ensure parallel-safe tests (`t.Parallel()`) when possible.

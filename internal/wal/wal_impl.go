@@ -17,8 +17,8 @@ type WALImpl struct {
 	path string
 }
 
-// OpenWAL creates (or reopens) a WAL file at path.
-func OpenWAL(path string) (*WALImpl, error) {
+// NewWAL creates (or reopens) a WAL file at path.
+func NewWAL(path string) (*WALImpl, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, err
@@ -87,26 +87,27 @@ func (l *WALImpl) Append(ctx context.Context, batch []Entry) error {
 	return l.file.Sync()
 }
 
-// Iterator returns a forward-only reader over all log entries.
+// Iterator returns an iterator that scans over all log entries.
 func (l *WALImpl) Iterator(ctx context.Context) (WALIterator, error) {
 	r, err := os.Open(l.path)
 	if err != nil {
 		return nil, err
 	}
-	return &fileIterator{
-		ctx: ctx,
-		f:   r,
-		br:  bufio.NewReader(r),
+	return &WALIteratorImpl{
+		ctx:  ctx,
+		file: r,
+		br:   bufio.NewReader(r),
 	}, nil
 }
 
-type fileIterator struct {
-	ctx context.Context
-	f   *os.File
-	br  *bufio.Reader
+// WALIteratorImpl implements WALIterator over a file-backed WAL.
+type WALIteratorImpl struct {
+	ctx  context.Context
+	file *os.File
+	br   *bufio.Reader
 }
 
-func (it *fileIterator) Next() (Entry, bool, error) {
+func (it *WALIteratorImpl) Next() (Entry, bool, error) {
 	if err := it.ctx.Err(); err != nil {
 		return Entry{}, false, err
 	}
@@ -164,6 +165,6 @@ func (it *fileIterator) Next() (Entry, bool, error) {
 	return entry, true, nil
 }
 
-func (it *fileIterator) Close() error {
-	return it.f.Close()
+func (it *WALIteratorImpl) Close() error {
+	return it.file.Close()
 }
