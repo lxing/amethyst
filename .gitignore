@@ -1,0 +1,2 @@
+# Ignore Go module metadata; lessons use workspace-local setups
+go.mod
