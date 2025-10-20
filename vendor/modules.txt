@@ -1,5 +1,0 @@
-# go 1.21
-
-# github.com/stretchr/testify v1.8.4
-## explicit
-github.com/stretchr/testify/require

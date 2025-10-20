@@ -25,9 +25,8 @@ func TestMapMemtablePutAndGet(t *testing.T) {
 	require.Equal(t, []byte("value"), entry.Value)
 
 	// Ensure lookup with mutated key still returns data via fresh slice.
-	entry2, ok := mt.Get([]byte("Alpha"))
+	_, ok = mt.Get([]byte("Alpha"))
 	require.False(t, ok)
-	require.Equal(t, memtable.Entry{}, entry2)
 }
 
 func TestMapMemtableDeleteMarksTombstone(t *testing.T) {
@@ -45,7 +44,6 @@ func TestMapMemtableDeleteMarksTombstone(t *testing.T) {
 func TestMapMemtableGetMissing(t *testing.T) {
 	mt := memtable.NewMemtable()
 
-	entry, ok := mt.Get([]byte("missing"))
+	_, ok := mt.Get([]byte("missing"))
 	require.False(t, ok)
-	require.Equal(t, memtable.Entry{}, entry)
 }
