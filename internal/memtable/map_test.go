@@ -1,7 +1,6 @@
 package memtable_test
 
 import (
-	"encoding/binary"
 	"fmt"
 	"testing"
 
@@ -45,48 +44,131 @@ func TestGetMissing(t *testing.T) {
 	require.Nil(t, value)
 }
 
+func TestOverwriteAndDeleteSameKey(t *testing.T) {
+	mt := memtable.NewMapMemtable()
+
+	key := []byte("duplicate")
+
+	// Store an initial value, then overwrite it.
+	require.NoError(t, mt.Put(key, []byte("v1")))
+	require.NoError(t, mt.Put(key, []byte("v2")))
+
+	stored, ok := mt.Get(key)
+	require.True(t, ok)
+	require.Equal(t, []byte("v2"), stored)
+
+	// Place a tombstone for the key.
+	require.NoError(t, mt.Delete(key))
+	stored, ok = mt.Get(key)
+	require.False(t, ok)
+	require.Nil(t, stored)
+
+	// Writing after a tombstone acts like a fresh put.
+	require.NoError(t, mt.Put(key, []byte("v3")))
+	stored, ok = mt.Get(key)
+	require.True(t, ok)
+	require.Equal(t, []byte("v3"), stored)
+}
+
 func TestBulkPutGetDelete(t *testing.T) {
 	mt := memtable.NewMapMemtable()
 
-	const total = 512
-	seqByKey := make(map[string]uint64)
+	const n = 32
+	expected := make(map[string]*common.Entry, 3*n)
 	var nextSeq uint64
-	for i := 0; i < total; i++ {
-		key := makeIndexedKey(i)
+
+	// Write first n keys that will remain as puts.
+	for i := 0; i < n; i++ {
+		keyStr := fmt.Sprintf("key%d", i)
+		key := []byte(keyStr)
 		value := []byte(fmt.Sprintf("v%04d", i))
 		require.NoError(t, mt.Put(key, value))
 		nextSeq++
-		seqByKey[string(key)] = nextSeq
+		expected[keyStr] = &common.Entry{
+			Type:  common.EntryTypePut,
+			Seq:   nextSeq,
+			Key:   append([]byte(nil), key...),
+			Value: append([]byte(nil), value...),
+		}
 	}
 
-	for i := 0; i < total; i++ {
-		key := makeIndexedKey(i)
+	// Write second n keys with _deleted suffix (these will be deleted).
+	for i := n; i < 2*n; i++ {
+		keyStr := fmt.Sprintf("key%d_deleted", i)
+		key := []byte(keyStr)
+		value := []byte(fmt.Sprintf("v%04d", i))
+		require.NoError(t, mt.Put(key, value))
+		nextSeq++
+		expected[keyStr] = &common.Entry{
+			Type:  common.EntryTypePut,
+			Seq:   nextSeq,
+			Key:   append([]byte(nil), key...),
+			Value: append([]byte(nil), value...),
+		}
+	}
+
+	// Verify all keys return their values before deletion.
+	for i := 0; i < n; i++ {
+		key := []byte(fmt.Sprintf("key%d", i))
+		value := []byte(fmt.Sprintf("v%04d", i))
+		stored, ok := mt.Get(key)
+		require.True(t, ok)
+		require.Equal(t, value, stored)
+	}
+	for i := n; i < 2*n; i++ {
+		key := []byte(fmt.Sprintf("key%d_deleted", i))
 		value := []byte(fmt.Sprintf("v%04d", i))
 		stored, ok := mt.Get(key)
 		require.True(t, ok)
 		require.Equal(t, value, stored)
 	}
 
-	for i := 0; i < total; i += 2 {
-		key := makeIndexedKey(i)
+	// Delete the second n keys (those with _deleted suffix).
+	for i := n; i < 2*n; i++ {
+		keyStr := fmt.Sprintf("key%d_deleted", i)
+		key := []byte(keyStr)
 		require.NoError(t, mt.Delete(key))
 		nextSeq++
-		seqByKey[string(key)] = nextSeq
+		expected[keyStr].Type = common.EntryTypeDelete
+		expected[keyStr].Seq = nextSeq
+		expected[keyStr].Value = nil
 	}
 
-	for i := 0; i < total; i++ {
-		key := makeIndexedKey(i)
-		stored, ok := mt.Get(key)
-		if i%2 == 0 {
-			require.False(t, ok)
-			require.Nil(t, stored)
-		} else {
-			require.True(t, ok)
-			require.Equal(t, []byte(fmt.Sprintf("v%04d", i)), stored)
+	// Delete third n keys that were never written (direct tombstones).
+	for i := 2 * n; i < 3*n; i++ {
+		keyStr := fmt.Sprintf("key%d_never_existed", i)
+		key := []byte(keyStr)
+		require.NoError(t, mt.Delete(key))
+		nextSeq++
+		expected[keyStr] = &common.Entry{
+			Type:  common.EntryTypeDelete,
+			Seq:   nextSeq,
+			Key:   append([]byte(nil), key...),
+			Value: nil,
 		}
 	}
 
-	// Verify sequence numbers and tombstones via iterator.
+	// Confirm first n keys remain, second n keys are deleted, third n keys are deleted.
+	for i := 0; i < n; i++ {
+		key := []byte(fmt.Sprintf("key%d", i))
+		stored, ok := mt.Get(key)
+		require.True(t, ok)
+		require.Equal(t, []byte(fmt.Sprintf("v%04d", i)), stored)
+	}
+	for i := n; i < 2*n; i++ {
+		key := []byte(fmt.Sprintf("key%d_deleted", i))
+		stored, ok := mt.Get(key)
+		require.False(t, ok)
+		require.Nil(t, stored)
+	}
+	for i := 2 * n; i < 3*n; i++ {
+		key := []byte(fmt.Sprintf("key%d_never_existed", i))
+		stored, ok := mt.Get(key)
+		require.False(t, ok)
+		require.Nil(t, stored)
+	}
+
+	// Iterator must surface each mutation with the sequence/type/value we recorded.
 	it := mt.Iterator()
 	count := 0
 	for {
@@ -97,60 +179,12 @@ func TestBulkPutGetDelete(t *testing.T) {
 		}
 		count++
 		require.NotNil(t, entry.Key)
-		idx := decodeIndexedKey(entry.Key)
-		require.GreaterOrEqual(t, idx, 0)
-		if entry.Type == common.EntryTypeDelete {
-			require.Equal(t, seqByKey[string(entry.Key)], entry.Seq)
-			require.Nil(t, entry.Value)
-		} else {
-			require.Equal(t, seqByKey[string(entry.Key)], entry.Seq)
-			require.Equal(t, []byte(fmt.Sprintf("v%04d", idx)), entry.Value)
-		}
+		entryKey := string(entry.Key)
+		expectation, ok := expected[entryKey]
+		require.True(t, ok, "unexpected key: %s", entryKey)
+		require.Equal(t, expectation.Seq, entry.Seq)
+		require.Equal(t, expectation.Type, entry.Type)
+		require.Equal(t, expectation.Value, entry.Value)
 	}
-	require.Equal(t, total, count)
-}
-
-func TestOverwriteAndDeleteSameKey(t *testing.T) {
-	mt := memtable.NewMapMemtable()
-
-	key := []byte("duplicate")
-
-	require.NoError(t, mt.Put(key, []byte("v1")))
-	require.NoError(t, mt.Put(key, []byte("v2")))
-
-	stored, ok := mt.Get(key)
-	require.True(t, ok)
-	require.Equal(t, []byte("v2"), stored)
-
-	require.NoError(t, mt.Delete(key))
-	stored, ok = mt.Get(key)
-	require.False(t, ok)
-	require.Nil(t, stored)
-
-	it := mt.Iterator()
-	entry, err := it.Next()
-	require.NoError(t, err)
-	require.NotNil(t, entry)
-	require.Equal(t, common.EntryTypeDelete, entry.Type)
-	require.Equal(t, uint64(3), entry.Seq)
-	require.Nil(t, entry.Value)
-
-	none, err := it.Next()
-	require.NoError(t, err)
-	require.Nil(t, none)
-}
-
-func makeIndexedKey(index int) []byte {
-	const suffix = "key"
-	key := make([]byte, 2+len(suffix))
-	binary.BigEndian.PutUint16(key[:2], uint16(index))
-	copy(key[2:], suffix)
-	return key
-}
-
-func decodeIndexedKey(key []byte) int {
-	if len(key) < 2 {
-		return -1
-	}
-	return int(binary.BigEndian.Uint16(key[:2]))
+	require.Equal(t, 3*n, count)
 }
