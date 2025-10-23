@@ -109,15 +109,15 @@ func (l *WALImpl) Iterator() (common.EntryIterator, error) {
 		entries = append(entries, entry)
 	}
 
-	return &sliceIterator{entries: entries}, nil
+	return &walIterator{entries: entries}, nil
 }
 
-type sliceIterator struct {
+type walIterator struct {
 	entries []*common.Entry
 	index   int
 }
 
-func (it *sliceIterator) Next() (*common.Entry, error) {
+func (it *walIterator) Next() (*common.Entry, error) {
 	if it.index >= len(it.entries) {
 		return nil, nil
 	}

@@ -16,32 +16,13 @@ func TestPutAndGet(t *testing.T) {
 	value := []byte("value")
 	mt.Put(key, value)
 
-	// Mutate original slices to ensure the memtable stored clones.
-	key[0] = 'A'
-	value[0] = 'V'
-
 	stored, ok := mt.Get([]byte("alpha"))
 	require.True(t, ok)
 	require.Equal(t, []byte("value"), stored)
 
-	// Mutating the returned slice should not affect stored state.
-	stored[0] = 'V'
-	again, ok := mt.Get([]byte("alpha"))
-	require.True(t, ok)
-	require.Equal(t, []byte("value"), again)
-
-	// Ensure lookup with mutated key still returns data via fresh slice.
-	missing, ok := mt.Get([]byte("Alpha"))
+	missing, ok := mt.Get([]byte("missing"))
 	require.False(t, ok)
 	require.Nil(t, missing)
-}
-
-func TestGetMissing(t *testing.T) {
-	mt := memtable.NewMapMemtable()
-
-	value, ok := mt.Get([]byte("missing"))
-	require.False(t, ok)
-	require.Nil(t, value)
 }
 
 func TestOverwriteAndDeleteSameKey(t *testing.T) {

@@ -50,7 +50,7 @@ func (d *DB) Put(key, value []byte) error {
 		return err
 	}
 
-	d.memtable.Put(key, value)
+	d.memtable.Put(entry.Key, entry.Value)
 	return nil
 }
 
@@ -73,7 +73,7 @@ func (d *DB) Delete(key []byte) error {
 		return err
 	}
 
-	d.memtable.Delete(key)
+	d.memtable.Delete(entry.Key)
 	return nil
 }
 
