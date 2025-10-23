@@ -6,16 +6,14 @@ import (
 	"errors"
 	"io"
 	"os"
-	"sync"
 
 	"amethyst/internal/common"
 )
 
 // WALImpl appends entries to a single file on disk.
 type WALImpl struct {
-	mu      sync.Mutex
-	file    *os.File
-	path    string
+	file       *os.File
+	path       string
 	entryCount int
 }
 
@@ -30,8 +28,6 @@ func NewWAL(path string) (*WALImpl, error) {
 
 // Close releases the underlying file handle.
 func (l *WALImpl) Close() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	if l.file == nil {
 		return nil
 	}
@@ -45,8 +41,6 @@ func (l *WALImpl) Append(batch []*common.Entry) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
 
 	if l.file == nil {
 		return errors.New("wal: log is closed")
@@ -116,8 +110,6 @@ func (l *WALImpl) Iterator() (common.EntryIterator, error) {
 
 // Len returns the number of entries written to this WAL.
 func (l *WALImpl) Len() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	return l.entryCount
 }
 
