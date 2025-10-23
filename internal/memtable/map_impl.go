@@ -1,7 +1,6 @@
 package memtable
 
 import (
-	"bytes"
 	"sort"
 	"sync"
 
@@ -11,48 +10,55 @@ import (
 // MapMemtableImpl is the baseline Go map-backed implementation.
 type MapMemtableImpl struct {
 	mu    sync.RWMutex
-	items map[string]MemtableEntry
+	items map[string]*common.Entry
+	next  uint64
 }
 
 // NewMapMemtable returns the default map-backed memtable implementation.
 func NewMapMemtable() Memtable {
 	return &MapMemtableImpl{
-		items: make(map[string]MemtableEntry),
+		items: make(map[string]*common.Entry),
 	}
 }
 
-// Put records or overwrites a key/value pair with the provided sequence number.
-func (m *MapMemtableImpl) Put(seq uint64, key, value []byte) error {
+// Put records or overwrites a key/value pair using the provided key and value.
+func (m *MapMemtableImpl) Put(key, value []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.items[string(key)] = MemtableEntry{
-		Sequence:  seq,
-		Value:     bytes.Clone(value),
-		Tombstone: false,
+	m.next++
+	m.items[string(key)] = &common.Entry{
+		Type:  common.EntryTypePut,
+		Seq:   m.next,
+		Value: cloneBytes(value),
 	}
 	return nil
 }
 
 // Delete installs a tombstone for the given key.
-func (m *MapMemtableImpl) Delete(seq uint64, key []byte) error {
+func (m *MapMemtableImpl) Delete(key []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.items[string(key)] = MemtableEntry{
-		Sequence:  seq,
-		Tombstone: true,
+	m.next++
+	m.items[string(key)] = &common.Entry{
+		Type: common.EntryTypeDelete,
+		Seq:  m.next,
 	}
 	return nil
 }
 
-// Get returns the most recent entry for key, if any.
-func (m *MapMemtableImpl) Get(key []byte) (MemtableEntry, bool) {
+// Get returns the most recent value for key, if any.
+func (m *MapMemtableImpl) Get(key []byte) ([]byte, bool) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	entry, ok := m.items[string(key)]
-	return entry, ok
+	if !ok || entry.Type != common.EntryTypePut {
+		m.mu.RUnlock()
+		return nil, false
+	}
+	value := cloneBytes(entry.Value)
+	m.mu.RUnlock()
+	return value, true
 }
 
 // Iterator returns a stable snapshot iterator over the current entries.
@@ -66,20 +72,7 @@ func (m *MapMemtableImpl) Iterator() common.EntryIterator {
 
 	entries := make([]*common.Entry, 0, len(keys))
 	for _, k := range keys {
-		item := m.items[k]
-		entryType := common.EntryTypePut
-		var value []byte
-		if item.Tombstone {
-			entryType = common.EntryTypeDelete
-		} else {
-			value = cloneBytes(item.Value)
-		}
-		entries = append(entries, &common.Entry{
-			Type:  entryType,
-			Seq:   item.Sequence,
-			Key:   cloneBytes([]byte(k)),
-			Value: value,
-		})
+		entries = append(entries, cloneIteratorEntry(m.items[k], k))
 	}
 	m.mu.RUnlock()
 
@@ -107,4 +100,19 @@ func cloneBytes(src []byte) []byte {
 	out := make([]byte, len(src))
 	copy(out, src)
 	return out
+}
+
+func cloneIteratorEntry(src *common.Entry, key string) *common.Entry {
+	if src == nil {
+		return nil
+	}
+	entry := &common.Entry{
+		Type: src.Type,
+		Seq:  src.Seq,
+		Key:  cloneBytes([]byte(key)),
+	}
+	if src.Type == common.EntryTypePut {
+		entry.Value = cloneBytes(src.Value)
+	}
+	return entry
 }

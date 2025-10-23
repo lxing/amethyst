@@ -50,7 +50,7 @@ func (d *DB) Put(key, value []byte) error {
 		return err
 	}
 
-	return d.memtable.Put(d.nextSeq, key, value)
+	return d.memtable.Put(key, value)
 }
 
 func (d *DB) Delete(key []byte) error {
@@ -72,16 +72,16 @@ func (d *DB) Delete(key []byte) error {
 		return err
 	}
 
-	return d.memtable.Delete(d.nextSeq, key)
+	return d.memtable.Delete(key)
 }
 
 func (d *DB) Get(key []byte) ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	entry, ok := d.memtable.Get(key)
-	if !ok || entry.Tombstone {
+	value, ok := d.memtable.Get(key)
+	if !ok {
 		return nil, errors.New("db: not found")
 	}
-	return bytes.Clone(entry.Value), nil
+	return bytes.Clone(value), nil
 }

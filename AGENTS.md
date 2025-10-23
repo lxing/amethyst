@@ -14,6 +14,7 @@ Use Go 1.21 or newer and enable modules (`GO111MODULE=on`). Run `go mod tidy` wh
 - `go run ./cmd/<service>` executes the selected entry point for rapid iteration.
 - `go test ./...` runs the full test suite; append `-run <regex>` for focused checks.
 - `go test -coverprofile=coverage.out ./...` followed by `go tool cover -html=coverage.out` reviews coverage hotspots before submitting a PR.
+- When running inside the sandbox, prefix Go commands with `GOCACHE=$(pwd)/.gocache` so the build cache stays within the workspace and can be reused across runs.
 
 ## Coding Style & Naming Conventions
 Run `gofmt -w` or your editor’s format-on-save before committing; tabs are expected for indentation. Organize imports with `goimports` to enforce standard grouping. Package names stay lowercase without underscores. Exported identifiers use PascalCase with concise nouns, while unexported helpers stay camelCase. Expand composite literals over multiple lines with aligned fields when they include nested structs or slices (see `internal/wal/wal_impl_test.go`). Test functions follow `TestFeature` patterns that mirror the code under test.
