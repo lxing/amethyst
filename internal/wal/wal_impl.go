@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"sync"
+
+	"amethyst/internal/common"
 )
 
 // WALImpl appends entries to a single file on disk.
@@ -42,7 +44,7 @@ func (l *WALImpl) Close() error {
 }
 
 // Append persists the provided batch. Entries are written sequentially.
-func (l *WALImpl) Append(ctx context.Context, batch []Entry) error {
+func (l *WALImpl) Append(ctx context.Context, batch []*common.Entry) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -57,6 +59,9 @@ func (l *WALImpl) Append(ctx context.Context, batch []Entry) error {
 	var varintBuf [binary.MaxVarintLen64]byte
 
 	for _, e := range batch {
+		if e == nil {
+			return errors.New("wal: nil entry")
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -107,62 +112,62 @@ type WALIteratorImpl struct {
 	br   *bufio.Reader
 }
 
-func (it *WALIteratorImpl) Next() (Entry, bool, error) {
+func (it *WALIteratorImpl) Next() (*common.Entry, error) {
 	if err := it.ctx.Err(); err != nil {
-		return Entry{}, false, err
+		return nil, err
 	}
 
 	b, err := it.br.ReadByte()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return Entry{}, false, nil
+			return nil, nil
 		}
-		return Entry{}, false, err
+		return nil, err
 	}
 
 	var seqBuf [8]byte
 	if _, err := io.ReadFull(it.br, seqBuf[:]); err != nil {
 		if errors.Is(err, io.EOF) {
-			return Entry{}, false, nil
+			return nil, nil
 		}
-		return Entry{}, false, err
+		return nil, err
 	}
 
 	keyLen, err := binary.ReadUvarint(it.br)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return Entry{}, false, nil
+			return nil, nil
 		}
-		return Entry{}, false, err
+		return nil, err
 	}
 
 	valLen, err := binary.ReadUvarint(it.br)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return Entry{}, false, nil
+			return nil, nil
 		}
-		return Entry{}, false, err
+		return nil, err
 	}
 
-	entry := Entry{
-		Type: EntryType(b),
+	entry := &common.Entry{
+		Type: common.EntryType(b),
 		Seq:  binary.LittleEndian.Uint64(seqBuf[:]),
 	}
 
 	if keyLen > 0 {
 		entry.Key = make([]byte, keyLen)
 		if _, err := io.ReadFull(it.br, entry.Key); err != nil {
-			return Entry{}, false, err
+			return nil, err
 		}
 	}
 	if valLen > 0 {
 		entry.Value = make([]byte, valLen)
 		if _, err := io.ReadFull(it.br, entry.Value); err != nil {
-			return Entry{}, false, err
+			return nil, err
 		}
 	}
 
-	return entry, true, nil
+	return entry, nil
 }
 
 func (it *WALIteratorImpl) Close() error {
