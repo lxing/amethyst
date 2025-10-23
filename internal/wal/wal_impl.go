@@ -24,10 +24,7 @@ func NewWAL(path string) (*WALImpl, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &WALImpl{
-		file: f,
-		path: path,
-	}, nil
+	return &WALImpl{file: f, path: path}, nil
 }
 
 // Close releases the underlying file handle.
@@ -88,26 +85,49 @@ func (l *WALImpl) Append(batch []*common.Entry) error {
 	return l.file.Sync()
 }
 
-// Iterator returns an iterator that scans over all log entries.
-func (l *WALImpl) Iterator() (Iterator, error) {
+// Iterator returns an in-memory iterator over all log entries.
+func (l *WALImpl) Iterator() (common.EntryIterator, error) {
 	r, err := os.Open(l.path)
 	if err != nil {
 		return nil, err
 	}
-	return &WALIteratorImpl{
-		file: r,
-		br:   bufio.NewReader(r),
-	}, nil
+	defer r.Close()
+
+	br := bufio.NewReader(r)
+	entries := make([]*common.Entry, 0)
+	for {
+		entry, err := readEntry(br)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, err
+		}
+		if entry == nil {
+			break
+		}
+		entries = append(entries, entry)
+	}
+
+	return &sliceIterator{entries: entries}, nil
 }
 
-// WALIteratorImpl implements WALIterator over a file-backed WAL.
-type WALIteratorImpl struct {
-	file *os.File
-	br   *bufio.Reader
+type sliceIterator struct {
+	entries []*common.Entry
+	index   int
 }
 
-func (it *WALIteratorImpl) Next() (*common.Entry, error) {
-	b, err := it.br.ReadByte()
+func (it *sliceIterator) Next() (*common.Entry, error) {
+	if it.index >= len(it.entries) {
+		return nil, nil
+	}
+	entry := it.entries[it.index]
+	it.index++
+	return entry, nil
+}
+
+func readEntry(br *bufio.Reader) (*common.Entry, error) {
+	b, err := br.ReadByte()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, nil
@@ -116,14 +136,14 @@ func (it *WALIteratorImpl) Next() (*common.Entry, error) {
 	}
 
 	var seqBuf [8]byte
-	if _, err := io.ReadFull(it.br, seqBuf[:]); err != nil {
+	if _, err := io.ReadFull(br, seqBuf[:]); err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, nil
 		}
 		return nil, err
 	}
 
-	keyLen, err := binary.ReadUvarint(it.br)
+	keyLen, err := binary.ReadUvarint(br)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, nil
@@ -131,7 +151,7 @@ func (it *WALIteratorImpl) Next() (*common.Entry, error) {
 		return nil, err
 	}
 
-	valLen, err := binary.ReadUvarint(it.br)
+	valLen, err := binary.ReadUvarint(br)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, nil
@@ -146,20 +166,16 @@ func (it *WALIteratorImpl) Next() (*common.Entry, error) {
 
 	if keyLen > 0 {
 		entry.Key = make([]byte, keyLen)
-		if _, err := io.ReadFull(it.br, entry.Key); err != nil {
+		if _, err := io.ReadFull(br, entry.Key); err != nil {
 			return nil, err
 		}
 	}
 	if valLen > 0 {
 		entry.Value = make([]byte, valLen)
-		if _, err := io.ReadFull(it.br, entry.Value); err != nil {
+		if _, err := io.ReadFull(br, entry.Value); err != nil {
 			return nil, err
 		}
 	}
 
 	return entry, nil
-}
-
-func (it *WALIteratorImpl) Close() error {
-	return it.file.Close()
 }

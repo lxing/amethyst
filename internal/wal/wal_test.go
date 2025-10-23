@@ -37,7 +37,6 @@ func TestAppendAndIterate(t *testing.T) {
 
 	iter, err := log.Iterator()
 	require.NoError(t, err)
-	defer iter.Close()
 
 	for i := range batch {
 		entry, err := iter.Next()
@@ -85,7 +84,6 @@ func TestPersistsAcrossOpen(t *testing.T) {
 
 	iter, err := log.Iterator()
 	require.NoError(t, err)
-	defer iter.Close()
 
 	var seqs []uint64
 	for {
@@ -134,7 +132,6 @@ func TestBulkAppendBatches(t *testing.T) {
 
 	iter, err := log.Iterator()
 	require.NoError(t, err)
-	defer iter.Close()
 
 	index := 0
 	for {

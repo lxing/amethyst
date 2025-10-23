@@ -22,10 +22,5 @@ func Equal(a, b *common.Entry) bool {
 // and recover write operations.
 type WAL interface {
 	Append(batch []*common.Entry) error
-	Iterator() (Iterator, error)
-}
-
-type Iterator interface {
-	common.EntryIterator
-	Close() error
+	Iterator() (common.EntryIterator, error)
 }

@@ -1,5 +1,7 @@
 package memtable
 
+import "amethyst/internal/common"
+
 // MemtableEntry describes a single key mutation stored in the memtable.
 type MemtableEntry struct {
 	Sequence  uint64
@@ -13,4 +15,5 @@ type Memtable interface {
 	// Delete does not error if the key is missing.
 	Delete(seq uint64, key []byte) error
 	Get(key []byte) (MemtableEntry, bool)
+	Iterator() common.EntryIterator
 }
