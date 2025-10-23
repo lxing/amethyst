@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	engine, err := db.Open(db.Options{})
+	engine, err := db.Open()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)

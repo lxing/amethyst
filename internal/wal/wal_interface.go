@@ -23,4 +23,5 @@ func Equal(a, b *common.Entry) bool {
 type WAL interface {
 	Append(batch []*common.Entry) error
 	Iterator() (common.EntryIterator, error)
+	Len() int
 }

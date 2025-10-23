@@ -13,9 +13,10 @@ import (
 
 // WALImpl appends entries to a single file on disk.
 type WALImpl struct {
-	mu   sync.Mutex
-	file *os.File
-	path string
+	mu      sync.Mutex
+	file    *os.File
+	path    string
+	entryCount int
 }
 
 // NewWAL creates (or reopens) a WAL file at path.
@@ -82,6 +83,7 @@ func (l *WALImpl) Append(batch []*common.Entry) error {
 			}
 		}
 	}
+	l.entryCount += len(batch)
 	return l.file.Sync()
 }
 
@@ -110,6 +112,13 @@ func (l *WALImpl) Iterator() (common.EntryIterator, error) {
 	}
 
 	return &walIterator{entries: entries}, nil
+}
+
+// Len returns the number of entries written to this WAL.
+func (l *WALImpl) Len() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.entryCount
 }
 
 type walIterator struct {
