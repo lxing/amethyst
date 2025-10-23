@@ -2,7 +2,6 @@ package db
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"sync"
 
@@ -20,7 +19,7 @@ type DB struct {
 	wal      *wal.WALImpl
 }
 
-func Open(ctx context.Context, opts Options) (*DB, error) {
+func Open(opts Options) (*DB, error) {
 	log, err := wal.NewWAL("wal.log")
 	if err != nil {
 		return nil, err
@@ -31,7 +30,7 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 	}, nil
 }
 
-func (d *DB) Put(ctx context.Context, key, value []byte) error {
+func (d *DB) Put(key, value []byte) error {
 	if len(key) == 0 {
 		return errors.New("db: key must be non-empty")
 	}
@@ -41,20 +40,20 @@ func (d *DB) Put(ctx context.Context, key, value []byte) error {
 
 	d.nextSeq++
 
-    entry := &common.Entry{
-        Type:  common.EntryTypePut,
-        Seq:   d.nextSeq,
-        Key:   bytes.Clone(key),
-        Value: bytes.Clone(value),
-    }
-    if err := d.wal.Append(ctx, []*common.Entry{entry}); err != nil {
-        return err
-    }
+	entry := &common.Entry{
+		Type:  common.EntryTypePut,
+		Seq:   d.nextSeq,
+		Key:   bytes.Clone(key),
+		Value: bytes.Clone(value),
+	}
+	if err := d.wal.Append([]*common.Entry{entry}); err != nil {
+		return err
+	}
 
 	return d.memtable.Put(d.nextSeq, key, value)
 }
 
-func (d *DB) Delete(ctx context.Context, key []byte) error {
+func (d *DB) Delete(key []byte) error {
 	if len(key) == 0 {
 		return errors.New("db: key must be non-empty")
 	}
@@ -64,19 +63,19 @@ func (d *DB) Delete(ctx context.Context, key []byte) error {
 
 	d.nextSeq++
 
-    entry := &common.Entry{
-        Type: common.EntryTypeDelete,
-        Seq:  d.nextSeq,
-        Key:  bytes.Clone(key),
-    }
-    if err := d.wal.Append(ctx, []*common.Entry{entry}); err != nil {
-        return err
-    }
+	entry := &common.Entry{
+		Type: common.EntryTypeDelete,
+		Seq:  d.nextSeq,
+		Key:  bytes.Clone(key),
+	}
+	if err := d.wal.Append([]*common.Entry{entry}); err != nil {
+		return err
+	}
 
 	return d.memtable.Delete(d.nextSeq, key)
 }
 
-func (d *DB) Get(ctx context.Context, key []byte) ([]byte, error) {
+func (d *DB) Get(key []byte) ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 

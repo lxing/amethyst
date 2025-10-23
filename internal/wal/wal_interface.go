@@ -2,7 +2,6 @@ package wal
 
 import (
 	"bytes"
-	"context"
 
 	"amethyst/internal/common"
 )
@@ -22,13 +21,11 @@ func Equal(a, b *common.Entry) bool {
 // WAL defines the minimal contract required by the DB layer to persist
 // and recover write operations.
 type WAL interface {
-	Append(ctx context.Context, batch []*common.Entry) error
-	Iterator(ctx context.Context) (WALIterator, error)
+	Append(batch []*common.Entry) error
+	Iterator() (Iterator, error)
 }
 
-// WALIterator walks entries recovered from the log.
-// Next returns nil, nil when EOF is reached.
-type WALIterator interface {
-	Next() (*common.Entry, error)
+type Iterator interface {
+	common.EntryIterator
 	Close() error
 }

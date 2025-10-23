@@ -2,7 +2,6 @@ package wal
 
 import (
 	"bufio"
-	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -44,7 +43,7 @@ func (l *WALImpl) Close() error {
 }
 
 // Append persists the provided batch. Entries are written sequentially.
-func (l *WALImpl) Append(ctx context.Context, batch []*common.Entry) error {
+func (l *WALImpl) Append(batch []*common.Entry) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -61,9 +60,6 @@ func (l *WALImpl) Append(ctx context.Context, batch []*common.Entry) error {
 	for _, e := range batch {
 		if e == nil {
 			return errors.New("wal: nil entry")
-		}
-		if err := ctx.Err(); err != nil {
-			return err
 		}
 		hdr[0] = byte(e.Type)
 		binary.LittleEndian.PutUint64(hdr[1:], e.Seq)
@@ -93,13 +89,12 @@ func (l *WALImpl) Append(ctx context.Context, batch []*common.Entry) error {
 }
 
 // Iterator returns an iterator that scans over all log entries.
-func (l *WALImpl) Iterator(ctx context.Context) (WALIterator, error) {
+func (l *WALImpl) Iterator() (Iterator, error) {
 	r, err := os.Open(l.path)
 	if err != nil {
 		return nil, err
 	}
 	return &WALIteratorImpl{
-		ctx:  ctx,
 		file: r,
 		br:   bufio.NewReader(r),
 	}, nil
@@ -107,16 +102,11 @@ func (l *WALImpl) Iterator(ctx context.Context) (WALIterator, error) {
 
 // WALIteratorImpl implements WALIterator over a file-backed WAL.
 type WALIteratorImpl struct {
-	ctx  context.Context
 	file *os.File
 	br   *bufio.Reader
 }
 
 func (it *WALIteratorImpl) Next() (*common.Entry, error) {
-	if err := it.ctx.Err(); err != nil {
-		return nil, err
-	}
-
 	b, err := it.br.ReadByte()
 	if err != nil {
 		if errors.Is(err, io.EOF) {

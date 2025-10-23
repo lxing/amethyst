@@ -16,3 +16,9 @@ type Entry struct {
 	Key   []byte
 	Value []byte
 }
+
+// EntryIterator produces a stream of entries. Next returns nil when the stream
+// is exhausted. Implementations should close underlying resources separately.
+type EntryIterator interface {
+	Next() (*Entry, error)
+}

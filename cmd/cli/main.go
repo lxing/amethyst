@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -11,7 +10,7 @@ import (
 )
 
 func main() {
-	engine, err := db.Open(context.Background(), db.Options{})
+	engine, err := db.Open(db.Options{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
@@ -41,7 +40,7 @@ func main() {
 				fmt.Println("usage: put <key> <value>")
 				continue
 			}
-			if err := engine.Put(context.Background(), []byte(parts[1]), []byte(parts[2])); err != nil {
+			if err := engine.Put([]byte(parts[1]), []byte(parts[2])); err != nil {
 				fmt.Printf("put error: %v\n", err)
 				continue
 			}
@@ -51,7 +50,7 @@ func main() {
 				fmt.Println("usage: get <key>")
 				continue
 			}
-			value, err := engine.Get(context.Background(), []byte(parts[1]))
+			value, err := engine.Get([]byte(parts[1]))
 			if err != nil {
 				fmt.Printf("get error: %v\n", err)
 				continue
@@ -62,7 +61,7 @@ func main() {
 				fmt.Println("usage: delete <key>")
 				continue
 			}
-			if err := engine.Delete(context.Background(), []byte(parts[1])); err != nil {
+			if err := engine.Delete([]byte(parts[1])); err != nil {
 				fmt.Printf("delete error: %v\n", err)
 				continue
 			}

@@ -1,7 +1,7 @@
 package memtable
 
-// Entry describes a single key mutation stored in the memtable.
-type Entry struct {
+// MemtableEntry describes a single key mutation stored in the memtable.
+type MemtableEntry struct {
 	Sequence  uint64
 	Value     []byte
 	Tombstone bool
@@ -12,5 +12,5 @@ type Memtable interface {
 	Put(seq uint64, key, value []byte) error
 	// Delete does not error if the key is missing.
 	Delete(seq uint64, key []byte) error
-	Get(key []byte) (Entry, bool)
+	Get(key []byte) (MemtableEntry, bool)
 }

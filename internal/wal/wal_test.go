@@ -1,7 +1,6 @@
 package wal_test
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -34,9 +33,9 @@ func TestAppendAndIterate(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, log.Append(context.Background(), batch))
+	require.NoError(t, log.Append(batch))
 
-	iter, err := log.Iterator(context.Background())
+	iter, err := log.Iterator()
 	require.NoError(t, err)
 	defer iter.Close()
 
@@ -67,7 +66,7 @@ func TestPersistsAcrossOpen(t *testing.T) {
 			Value: []byte("v1"),
 		},
 	}
-	require.NoError(t, log.Append(context.Background(), batch1))
+	require.NoError(t, log.Append(batch1))
 	require.NoError(t, log.Close())
 
 	log, err = wal.NewWAL(path)
@@ -82,9 +81,9 @@ func TestPersistsAcrossOpen(t *testing.T) {
 			Value: []byte("v2"),
 		},
 	}
-	require.NoError(t, log.Append(context.Background(), batch2))
+	require.NoError(t, log.Append(batch2))
 
-	iter, err := log.Iterator(context.Background())
+	iter, err := log.Iterator()
 	require.NoError(t, err)
 	defer iter.Close()
 
@@ -130,10 +129,10 @@ func TestBulkAppendBatches(t *testing.T) {
 			current = append(current, entry)
 			expected = append(expected, entry)
 		}
-		require.NoError(t, log.Append(context.Background(), current))
+		require.NoError(t, log.Append(current))
 	}
 
-	iter, err := log.Iterator(context.Background())
+	iter, err := log.Iterator()
 	require.NoError(t, err)
 	defer iter.Close()
 
