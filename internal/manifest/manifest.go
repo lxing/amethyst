@@ -7,8 +7,8 @@ type FileNumber uint64
 
 // Version represents an immutable snapshot of the LSM tree structure.
 type Version struct {
-	// Active WALs needed for recovery. Last entry is the current WAL being written.
-	ActiveWALs []FileNumber
+	// Current WAL being written
+	CurrentWAL FileNumber
 
 	// Levels[0] = L0 tables, Levels[1] = L1 tables, etc.
 	Levels [][]FileNumber
@@ -44,30 +44,14 @@ func (m *Manifest) Current() *Version {
 	return m.current
 }
 
-// AddWAL adds a new WAL to the active set and increments NextWALNumber.
-func (m *Manifest) AddWAL(num FileNumber) {
+// SetWAL sets the current WAL and increments NextWALNumber.
+func (m *Manifest) SetWAL(num FileNumber) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	newVersion := m.deepCopy(m.current)
-	newVersion.ActiveWALs = append(newVersion.ActiveWALs, num)
+	newVersion.CurrentWAL = num
 	newVersion.NextWALNumber = num + 1
-	m.current = newVersion
-}
-
-// DeleteWAL removes a WAL from the active set.
-func (m *Manifest) DeleteWAL(num FileNumber) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	newVersion := m.deepCopy(m.current)
-	filtered := make([]FileNumber, 0, len(newVersion.ActiveWALs))
-	for _, wal := range newVersion.ActiveWALs {
-		if wal != num {
-			filtered = append(filtered, wal)
-		}
-	}
-	newVersion.ActiveWALs = filtered
 	m.current = newVersion
 }
 
@@ -119,12 +103,11 @@ func (m *Manifest) Apply(edit *CompactionEdit) {
 
 func (m *Manifest) deepCopy(v *Version) *Version {
 	newVersion := &Version{
-		ActiveWALs:        make([]FileNumber, len(v.ActiveWALs)),
+		CurrentWAL:        v.CurrentWAL,
 		Levels:            make([][]FileNumber, len(v.Levels)),
 		NextWALNumber:     v.NextWALNumber,
 		NextSSTableNumber: v.NextSSTableNumber,
 	}
-	copy(newVersion.ActiveWALs, v.ActiveWALs)
 	for i := range v.Levels {
 		newVersion.Levels[i] = make([]FileNumber, len(v.Levels[i]))
 		copy(newVersion.Levels[i], v.Levels[i])

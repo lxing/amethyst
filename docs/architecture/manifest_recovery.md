@@ -8,26 +8,26 @@ The manifest is the source of truth for the LSM tree structure. It tracks active
 
 ```go
 type Version struct {
-    ActiveWALs        []FileNumber  // Active WALs; last entry is current
+    CurrentWAL        FileNumber     // Current WAL being written
     Levels            [][]FileNumber // SSTables per level
-    NextWALNumber     FileNumber    // Next WAL to allocate
-    NextSSTableNumber FileNumber    // Next SSTable to allocate
+    NextWALNumber     FileNumber     // Next WAL to allocate
+    NextSSTableNumber FileNumber     // Next SSTable to allocate
 }
 ```
 
 The manifest maintains an immutable `Version` representing the current state. Mutations create a new version via deep copy, then atomically swap the current pointer.
 
-## WAL Rotation Protocol
+## WAL Rotation Protocol (Synchronous Flush)
 
 When the active WAL reaches size threshold:
 
 1. **Allocate**: Get `NextWALNumber` from manifest
 2. **Create file**: Write new WAL file to disk
 3. **Sync**: Ensure file is durable
-4. **Update manifest**: Call `AddWAL(newWALNumber)` - this is the commit point
-5. **Swap**: Atomically start writing to new WAL
-6. **Flush**: Memtable backed by old WAL is now immutable and can be flushed
-7. **Clean up**: After flush completes, call `DeleteWAL(oldWALNumber)` and delete file
+4. **Flush**: Synchronously flush memtable to SSTable (blocks writers)
+5. **Update manifest**: Call `SetWAL(newWALNumber)` - this is the commit point
+6. **Swap**: Atomically start writing to new WAL and new memtable
+7. **Clean up**: Delete old WAL file from disk
 
 ## Compaction Protocol
 
