@@ -38,16 +38,7 @@ func TestAppendAndIterate(t *testing.T) {
 	iter, err := log.Iterator()
 	require.NoError(t, err)
 
-	for i := range batch {
-		entry, err := iter.Next()
-		require.NoError(t, err)
-		require.NotNil(t, entry)
-		require.True(t, wal.Equal(entry, batch[i]))
-	}
-
-	entry, err := iter.Next()
-	require.NoError(t, err)
-	require.Nil(t, entry)
+	common.RequireMatchesIterator(t, iter, batch)
 }
 
 func TestPersistsAcrossOpen(t *testing.T) {
@@ -85,17 +76,7 @@ func TestPersistsAcrossOpen(t *testing.T) {
 	iter, err := log.Iterator()
 	require.NoError(t, err)
 
-	var seqs []uint64
-	for {
-		entry, err := iter.Next()
-		require.NoError(t, err)
-		if entry == nil {
-			break
-		}
-		seqs = append(seqs, entry.Seq)
-	}
-
-	require.Equal(t, []uint64{10, 11}, seqs)
+	common.RequireMatchesIterator(t, iter, append(batch1, batch2...))
 }
 
 func TestBulkAppendBatches(t *testing.T) {
@@ -133,16 +114,5 @@ func TestBulkAppendBatches(t *testing.T) {
 	iter, err := log.Iterator()
 	require.NoError(t, err)
 
-	index := 0
-	for {
-		entry, err := iter.Next()
-		require.NoError(t, err)
-		if entry == nil {
-			break
-		}
-		require.True(t, wal.Equal(entry, expected[index]))
-		index++
-	}
-
-	require.Equal(t, len(expected), index)
+	common.RequireMatchesIterator(t, iter, expected)
 }
