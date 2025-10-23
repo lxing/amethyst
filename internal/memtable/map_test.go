@@ -14,7 +14,7 @@ func TestPutAndGet(t *testing.T) {
 
 	key := []byte("alpha")
 	value := []byte("value")
-	require.NoError(t, mt.Put(key, value))
+	mt.Put(key, value)
 
 	// Mutate original slices to ensure the memtable stored clones.
 	key[0] = 'A'
@@ -50,21 +50,21 @@ func TestOverwriteAndDeleteSameKey(t *testing.T) {
 	key := []byte("duplicate")
 
 	// Store an initial value, then overwrite it.
-	require.NoError(t, mt.Put(key, []byte("v1")))
-	require.NoError(t, mt.Put(key, []byte("v2")))
+	mt.Put(key, []byte("v1"))
+	mt.Put(key, []byte("v2"))
 
 	stored, ok := mt.Get(key)
 	require.True(t, ok)
 	require.Equal(t, []byte("v2"), stored)
 
 	// Place a tombstone for the key.
-	require.NoError(t, mt.Delete(key))
+	mt.Delete(key)
 	stored, ok = mt.Get(key)
 	require.False(t, ok)
 	require.Nil(t, stored)
 
 	// Writing after a tombstone acts like a fresh put.
-	require.NoError(t, mt.Put(key, []byte("v3")))
+	mt.Put(key, []byte("v3"))
 	stored, ok = mt.Get(key)
 	require.True(t, ok)
 	require.Equal(t, []byte("v3"), stored)
@@ -82,7 +82,7 @@ func TestBulkPutGetDelete(t *testing.T) {
 		keyStr := fmt.Sprintf("key%d", i)
 		key := []byte(keyStr)
 		value := []byte(fmt.Sprintf("v%04d", i))
-		require.NoError(t, mt.Put(key, value))
+		mt.Put(key, value)
 		nextSeq++
 		expected[keyStr] = &common.Entry{
 			Type:  common.EntryTypePut,
@@ -97,7 +97,7 @@ func TestBulkPutGetDelete(t *testing.T) {
 		keyStr := fmt.Sprintf("key%d_deleted", i)
 		key := []byte(keyStr)
 		value := []byte(fmt.Sprintf("v%04d", i))
-		require.NoError(t, mt.Put(key, value))
+		mt.Put(key, value)
 		nextSeq++
 		expected[keyStr] = &common.Entry{
 			Type:  common.EntryTypePut,
@@ -127,7 +127,7 @@ func TestBulkPutGetDelete(t *testing.T) {
 	for i := n; i < 2*n; i++ {
 		keyStr := fmt.Sprintf("key%d_deleted", i)
 		key := []byte(keyStr)
-		require.NoError(t, mt.Delete(key))
+		mt.Delete(key)
 		nextSeq++
 		expected[keyStr].Type = common.EntryTypeDelete
 		expected[keyStr].Seq = nextSeq
@@ -138,7 +138,7 @@ func TestBulkPutGetDelete(t *testing.T) {
 	for i := 2 * n; i < 3*n; i++ {
 		keyStr := fmt.Sprintf("key%d_never_existed", i)
 		key := []byte(keyStr)
-		require.NoError(t, mt.Delete(key))
+		mt.Delete(key)
 		nextSeq++
 		expected[keyStr] = &common.Entry{
 			Type:  common.EntryTypeDelete,

@@ -22,7 +22,7 @@ func NewMapMemtable() Memtable {
 }
 
 // Put records or overwrites a key/value pair using the provided key and value.
-func (m *MapMemtableImpl) Put(key, value []byte) error {
+func (m *MapMemtableImpl) Put(key, value []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -32,11 +32,10 @@ func (m *MapMemtableImpl) Put(key, value []byte) error {
 		Seq:   m.next,
 		Value: cloneBytes(value),
 	}
-	return nil
 }
 
 // Delete installs a tombstone for the given key.
-func (m *MapMemtableImpl) Delete(key []byte) error {
+func (m *MapMemtableImpl) Delete(key []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -45,7 +44,6 @@ func (m *MapMemtableImpl) Delete(key []byte) error {
 		Type: common.EntryTypeDelete,
 		Seq:  m.next,
 	}
-	return nil
 }
 
 // Get returns the most recent value for key, if any.
