@@ -18,6 +18,11 @@ type options struct {
 	maxSSTableLevel int
 }
 
+var DEFAULT_OPTS = options{
+	walThreshold:    100,
+	maxSSTableLevel: 3,
+}
+
 type Option func(*options)
 
 func WithWALThreshold(n int) Option {
@@ -42,10 +47,7 @@ type DB struct {
 }
 
 func Open(optFns ...Option) (*DB, error) {
-	opts := options{
-		walThreshold:    1000,
-		maxSSTableLevel: 3,
-	}
+	opts := DEFAULT_OPTS
 	for _, fn := range optFns {
 		fn(&opts)
 	}
@@ -87,9 +89,9 @@ func (d *DB) Put(key, value []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Check if we need to rotate WAL
+	// Check if we need to flush memtable
 	if d.wal.Len() >= d.opts.walThreshold {
-		if err := d.rotateWAL(); err != nil {
+		if err := d.flushMemtable(); err != nil {
 			return err
 		}
 	}
@@ -118,9 +120,9 @@ func (d *DB) Delete(key []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Check if we need to rotate WAL
+	// Check if we need to flush memtable
 	if d.wal.Len() >= d.opts.walThreshold {
-		if err := d.rotateWAL(); err != nil {
+		if err := d.flushMemtable(); err != nil {
 			return err
 		}
 	}
@@ -151,47 +153,41 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	return bytes.Clone(value), nil
 }
 
-// rotateWAL creates a new WAL and flushes the current memtable.
+// flushMemtable writes the current memtable to an SSTable and rotates the WAL.
 // Must be called with d.mu held.
-func (d *DB) rotateWAL() error {
+func (d *DB) flushMemtable() error {
 	v := d.manifest.Current()
 	newWALNum := v.NextWALNumber
 
-	// 1. Create new WAL file
+	// 1. Close old WAL (no more writes needed)
+	d.wal.Close()
+
+	// 2. Create new WAL file
 	newWALPath := fmt.Sprintf("wal/%d.log", newWALNum)
 	newWAL, err := wal.NewWAL(newWALPath)
 	if err != nil {
 		return err
 	}
 
-	// 2. Flush current memtable to SSTable (stubbed for now)
-	if err := d.flushMemtable(); err != nil {
+	// 3. Write memtable to SSTable (stubbed for now)
+	if err := d.writeSSTable(); err != nil {
 		return err
 	}
 
-	// 3. Update manifest (atomic commit point)
+	// 4. Update manifest (atomic commit point)
 	d.manifest.SetWAL(newWALNum)
 
-	// 4. Swap to new WAL and new memtable
-	oldWAL := d.wal
-	oldWALNum := v.CurrentWAL
+	// 5. Swap to new WAL and new memtable
 	d.wal = newWAL
 	d.memtable = memtable.NewMapMemtable()
-
-	// 5. Close and delete old WAL
-	if closer, ok := oldWAL.(interface{ Close() error }); ok {
-		closer.Close()
-	}
-	oldWALPath := fmt.Sprintf("wal/%d.log", oldWALNum)
-	os.Remove(oldWALPath)
 
 	return nil
 }
 
-// flushMemtable writes the current memtable to an SSTable.
+// writeSSTable writes the current memtable to an SSTable file.
 // Stubbed for now - will be implemented when SSTable writer is ready.
-func (d *DB) flushMemtable() error {
-	// TODO: Implement SSTable flush
+func (d *DB) writeSSTable() error {
+	// TODO: Implement SSTable write
 	// 1. Get iterator from memtable
 	// 2. Write all entries to SSTable
 	// 3. Update manifest with new SSTable
