@@ -70,3 +70,65 @@ func (e *Entry) Encode(w io.Writer) error {
 
 	return nil
 }
+
+// DecodeEntry reads a single entry from the reader.
+// Returns nil entry on EOF. Returns error on malformed data.
+func DecodeEntry(r io.Reader) (*Entry, error) {
+	// Read type (1 byte)
+	var typeByte [1]byte
+	if _, err := io.ReadFull(r, typeByte[:]); err != nil {
+		return nil, err
+	}
+
+	// Read seq (8 bytes)
+	var seqBuf [8]byte
+	if _, err := io.ReadFull(r, seqBuf[:]); err != nil {
+		return nil, err
+	}
+
+	// Read keyLen (varint)
+	keyLen, err := binary.ReadUvarint(byteReader{r})
+	if err != nil {
+		return nil, err
+	}
+
+	// Read valueLen (varint)
+	valueLen, err := binary.ReadUvarint(byteReader{r})
+	if err != nil {
+		return nil, err
+	}
+
+	entry := &Entry{
+		Type: EntryType(typeByte[0]),
+		Seq:  binary.LittleEndian.Uint64(seqBuf[:]),
+	}
+
+	// Read key
+	if keyLen > 0 {
+		entry.Key = make([]byte, keyLen)
+		if _, err := io.ReadFull(r, entry.Key); err != nil {
+			return nil, err
+		}
+	}
+
+	// Read value
+	if valueLen > 0 {
+		entry.Value = make([]byte, valueLen)
+		if _, err := io.ReadFull(r, entry.Value); err != nil {
+			return nil, err
+		}
+	}
+
+	return entry, nil
+}
+
+// byteReader adapts io.Reader to io.ByteReader for binary.ReadUvarint
+type byteReader struct {
+	io.Reader
+}
+
+func (br byteReader) ReadByte() (byte, error) {
+	var b [1]byte
+	_, err := br.Reader.Read(b[:])
+	return b[0], err
+}

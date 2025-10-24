@@ -2,7 +2,6 @@ package wal
 
 import (
 	"bufio"
-	"encoding/binary"
 	"errors"
 	"io"
 	"os"
@@ -69,7 +68,7 @@ func (l *WALImpl) Iterator() (common.EntryIterator, error) {
 	br := bufio.NewReader(r)
 	entries := make([]*common.Entry, 0)
 	for {
-		entry, err := readEntry(br)
+		entry, err := common.DecodeEntry(br)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
@@ -101,59 +100,5 @@ func (it *walIterator) Next() (*common.Entry, error) {
 	}
 	entry := it.entries[it.index]
 	it.index++
-	return entry, nil
-}
-
-func readEntry(br *bufio.Reader) (*common.Entry, error) {
-	b, err := br.ReadByte()
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	var seqBuf [8]byte
-	if _, err := io.ReadFull(br, seqBuf[:]); err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	keyLen, err := binary.ReadUvarint(br)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	valLen, err := binary.ReadUvarint(br)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	entry := &common.Entry{
-		Type: common.EntryType(b),
-		Seq:  binary.LittleEndian.Uint64(seqBuf[:]),
-	}
-
-	if keyLen > 0 {
-		entry.Key = make([]byte, keyLen)
-		if _, err := io.ReadFull(br, entry.Key); err != nil {
-			return nil, err
-		}
-	}
-	if valLen > 0 {
-		entry.Value = make([]byte, valLen)
-		if _, err := io.ReadFull(br, entry.Value); err != nil {
-			return nil, err
-		}
-	}
-
 	return entry, nil
 }
