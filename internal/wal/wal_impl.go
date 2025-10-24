@@ -45,9 +45,6 @@ func (l *WALImpl) WriteEntry(batch []*common.Entry) error {
 	}
 
 	for _, e := range batch {
-		if e == nil {
-			return errors.New("wal: nil entry")
-		}
 		if err := e.Encode(l.file); err != nil {
 			return err
 		}

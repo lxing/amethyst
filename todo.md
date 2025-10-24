@@ -6,6 +6,7 @@
 - [ ] Batched WAL writes
   - Batch multiple entries before sync for better throughput
   - Configurable batch size and timeout
+  - **Note:** Will require rethinking DB concurrency model (current single RWMutex doesn't allow concurrent writes)
 
 ### Memtable
 - [ ] Skiplist memtable implementation

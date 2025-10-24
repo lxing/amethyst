@@ -13,6 +13,8 @@ import (
 	"amethyst/internal/wal"
 )
 
+var ErrNotFound = errors.New("key not found")
+
 type options struct {
 	walThreshold    int
 	maxSSTableLevel int
@@ -149,12 +151,12 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	entry, ok := d.memtable.Get(key)
 	if !ok {
 		// TODO: Check SSTables
-		return nil, errors.New("db: not found")
+		return nil, ErrNotFound
 	}
 
 	// If it's a tombstone, don't fall through to SSTables
 	if entry.Type == common.EntryTypeDelete {
-		return nil, errors.New("db: not found")
+		return nil, ErrNotFound
 	}
 
 	return bytes.Clone(entry.Value), nil
