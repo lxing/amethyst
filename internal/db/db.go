@@ -146,11 +146,18 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	value, ok := d.memtable.Get(key)
+	entry, ok := d.memtable.Get(key)
 	if !ok {
+		// TODO: Check SSTables
 		return nil, errors.New("db: not found")
 	}
-	return bytes.Clone(value), nil
+
+	// If it's a tombstone, don't fall through to SSTables
+	if entry.Type == common.EntryTypeDelete {
+		return nil, errors.New("db: not found")
+	}
+
+	return bytes.Clone(entry.Value), nil
 }
 
 // flushMemtable writes the current memtable to an SSTable and rotates the WAL.

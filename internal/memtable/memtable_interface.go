@@ -6,6 +6,6 @@ import "amethyst/internal/common"
 type Memtable interface {
 	Put(key, value []byte)
 	Delete(key []byte)
-	Get(key []byte) ([]byte, bool)
+	Get(key []byte) (*common.Entry, bool)
 	Iterator() common.EntryIterator
 }

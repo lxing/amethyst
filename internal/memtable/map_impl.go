@@ -38,13 +38,19 @@ func (m *MapMemtableImpl) Delete(key []byte) {
 	}
 }
 
-// Get returns the most recent value for key, if any.
-func (m *MapMemtableImpl) Get(key []byte) ([]byte, bool) {
+// Get returns the most recent entry for key, if any.
+func (m *MapMemtableImpl) Get(key []byte) (*common.Entry, bool) {
 	entry, ok := m.items[string(key)]
-	if !ok || entry.Type != common.EntryTypePut {
+	if !ok {
 		return nil, false
 	}
-	return entry.Value, true
+	// Clone the entry with the key included
+	return &common.Entry{
+		Type:  entry.Type,
+		Seq:   entry.Seq,
+		Key:   key,
+		Value: entry.Value,
+	}, true
 }
 
 // Iterator returns a stable snapshot iterator over the current entries.

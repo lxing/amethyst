@@ -16,9 +16,10 @@ func TestPutAndGet(t *testing.T) {
 	value := []byte("value")
 	mt.Put(key, value)
 
-	stored, ok := mt.Get([]byte("alpha"))
+	entry, ok := mt.Get([]byte("alpha"))
 	require.True(t, ok)
-	require.Equal(t, []byte("value"), stored)
+	require.Equal(t, common.EntryTypePut, entry.Type)
+	require.Equal(t, []byte("value"), entry.Value)
 
 	missing, ok := mt.Get([]byte("missing"))
 	require.False(t, ok)
@@ -34,21 +35,23 @@ func TestOverwriteAndDeleteSameKey(t *testing.T) {
 	mt.Put(key, []byte("v1"))
 	mt.Put(key, []byte("v2"))
 
-	stored, ok := mt.Get(key)
+	entry, ok := mt.Get(key)
 	require.True(t, ok)
-	require.Equal(t, []byte("v2"), stored)
+	require.Equal(t, common.EntryTypePut, entry.Type)
+	require.Equal(t, []byte("v2"), entry.Value)
 
 	// Place a tombstone for the key.
 	mt.Delete(key)
-	stored, ok = mt.Get(key)
-	require.False(t, ok)
-	require.Nil(t, stored)
+	entry, ok = mt.Get(key)
+	require.True(t, ok)
+	require.Equal(t, common.EntryTypeDelete, entry.Type)
 
 	// Writing after a tombstone acts like a fresh put.
 	mt.Put(key, []byte("v3"))
-	stored, ok = mt.Get(key)
+	entry, ok = mt.Get(key)
 	require.True(t, ok)
-	require.Equal(t, []byte("v3"), stored)
+	require.Equal(t, common.EntryTypePut, entry.Type)
+	require.Equal(t, []byte("v3"), entry.Value)
 }
 
 func TestBulkPutGetDelete(t *testing.T) {
@@ -92,16 +95,18 @@ func TestBulkPutGetDelete(t *testing.T) {
 	for i := 0; i < n; i++ {
 		key := []byte(fmt.Sprintf("key%d", i))
 		value := []byte(fmt.Sprintf("v%04d", i))
-		stored, ok := mt.Get(key)
+		entry, ok := mt.Get(key)
 		require.True(t, ok)
-		require.Equal(t, value, stored)
+		require.Equal(t, common.EntryTypePut, entry.Type)
+		require.Equal(t, value, entry.Value)
 	}
 	for i := n; i < 2*n; i++ {
 		key := []byte(fmt.Sprintf("key%d_deleted", i))
 		value := []byte(fmt.Sprintf("v%04d", i))
-		stored, ok := mt.Get(key)
+		entry, ok := mt.Get(key)
 		require.True(t, ok)
-		require.Equal(t, value, stored)
+		require.Equal(t, common.EntryTypePut, entry.Type)
+		require.Equal(t, value, entry.Value)
 	}
 
 	// Delete the second n keys (those with _deleted suffix).
@@ -132,21 +137,22 @@ func TestBulkPutGetDelete(t *testing.T) {
 	// Confirm first n keys remain, second n keys are deleted, third n keys are deleted.
 	for i := 0; i < n; i++ {
 		key := []byte(fmt.Sprintf("key%d", i))
-		stored, ok := mt.Get(key)
+		entry, ok := mt.Get(key)
 		require.True(t, ok)
-		require.Equal(t, []byte(fmt.Sprintf("v%04d", i)), stored)
+		require.Equal(t, common.EntryTypePut, entry.Type)
+		require.Equal(t, []byte(fmt.Sprintf("v%04d", i)), entry.Value)
 	}
 	for i := n; i < 2*n; i++ {
 		key := []byte(fmt.Sprintf("key%d_deleted", i))
-		stored, ok := mt.Get(key)
-		require.False(t, ok)
-		require.Nil(t, stored)
+		entry, ok := mt.Get(key)
+		require.True(t, ok)
+		require.Equal(t, common.EntryTypeDelete, entry.Type)
 	}
 	for i := 2 * n; i < 3*n; i++ {
 		key := []byte(fmt.Sprintf("key%d_never_existed", i))
-		stored, ok := mt.Get(key)
-		require.False(t, ok)
-		require.Nil(t, stored)
+		entry, ok := mt.Get(key)
+		require.True(t, ok)
+		require.Equal(t, common.EntryTypeDelete, entry.Type)
 	}
 
 	// Iterator must surface each mutation with the sequence/type/value we recorded.
