@@ -3,13 +3,13 @@ package sstable
 // SSTable File Layout:
 //
 // ┌─────────────────┐
-// │  Data Block 0   │  100 entries, sorted by key (no duplicates)
+// │  Data Block 0   │  block.BLOCK_SIZE entries, sorted by key (no duplicates)
 // ├─────────────────┤
-// │  Data Block 1   │  100 entries
+// │  Data Block 1   │  block.BLOCK_SIZE entries
 // ├─────────────────┤
 // │      ...        │
 // ├─────────────────┤
-// │  Data Block N   │  100 entries (may have fewer in last block)
+// │  Data Block N   │  block.BLOCK_SIZE entries (may have fewer in last block)
 // ├─────────────────┤
 // │ Filter Section  │  Bloom filter
 // ├─────────────────┤
@@ -19,9 +19,6 @@ package sstable
 // └─────────────────┘
 
 const (
-	// BLOCK_SIZE is the target number of entries per data block.
-	BLOCK_SIZE = 16
-
 	// FOOTER_SIZE is the size of the footer in bytes.
 	FOOTER_SIZE = 16
 )

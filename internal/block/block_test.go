@@ -2,6 +2,7 @@ package block
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"amethyst/internal/common"
@@ -9,73 +10,80 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBlockGetSingleEntry(t *testing.T) {
-	// Create a block with a single entry
-	entry := &common.Entry{
-		Type:  common.EntryTypePut,
-		Seq:   1,
-		Key:   []byte("key1"),
-		Value: []byte("value1"),
+// testBlockWithEntries creates a block with n entries and verifies lookups.
+func testBlockWithEntries(t *testing.T, n int) {
+	require.True(t, n <= BLOCK_SIZE, "test requires n <= BLOCK_SIZE")
+
+	// Create n sorted entries (using letters for keys)
+	entries := make([]*common.Entry, n)
+	for i := 0; i < n; i++ {
+		key := fmt.Sprintf("key_%02d", i)
+		entries[i] = &common.Entry{
+			Type:  common.EntryTypePut,
+			Seq:   uint64(i + 1),
+			Key:   []byte(key),
+			Value: []byte(fmt.Sprintf("value_%02d", i)),
+		}
 	}
 
-	var buf bytes.Buffer
-	require.NoError(t, entry.Encode(&buf))
-
-	block, err := NewBlock(buf.Bytes())
-	require.NoError(t, err)
-
-	// Get should find the entry
-	found, err := block.Get([]byte("key1"))
-	require.NoError(t, err)
-	require.NotNil(t, found)
-	require.Equal(t, common.EntryTypePut, found.Type)
-	require.Equal(t, uint64(1), found.Seq)
-	require.Equal(t, []byte("key1"), found.Key)
-	require.Equal(t, []byte("value1"), found.Value)
-
-	// Get should return nil for missing key
-	notFound, err := block.Get([]byte("missing"))
-	require.NoError(t, err)
-	require.Nil(t, notFound)
-}
-
-func TestBlockGetMultipleEntries(t *testing.T) {
-	// Create a block with multiple sorted entries
-	entries := []*common.Entry{
-		{Type: common.EntryTypePut, Seq: 1, Key: []byte("a"), Value: []byte("val_a")},
-		{Type: common.EntryTypePut, Seq: 2, Key: []byte("c"), Value: []byte("val_c")},
-		{Type: common.EntryTypePut, Seq: 3, Key: []byte("e"), Value: []byte("val_e")},
-		{Type: common.EntryTypePut, Seq: 4, Key: []byte("g"), Value: []byte("val_g")},
-	}
-
+	// Encode all entries into a block
 	var buf bytes.Buffer
 	for _, e := range entries {
 		require.NoError(t, e.Encode(&buf))
 	}
 
+	// Parse the block
 	block, err := NewBlock(buf.Bytes())
 	require.NoError(t, err)
 
-	// Test finding each entry
-	for _, expected := range entries {
-		found, err := block.Get(expected.Key)
-		require.NoError(t, err)
-		require.NotNil(t, found)
+	// Verify all entries can be found
+	for i, expected := range entries {
+		found, ok := block.Get(expected.Key)
+		require.True(t, ok, "key %d should be found", i)
+		require.NotNil(t, found, "key %d should be found", i)
 		require.Equal(t, expected.Type, found.Type)
 		require.Equal(t, expected.Seq, found.Seq)
 		require.Equal(t, expected.Key, found.Key)
 		require.Equal(t, expected.Value, found.Value)
 	}
 
-	// Test missing keys
-	for _, key := range []string{"b", "d", "f", "z"} {
-		notFound, err := block.Get([]byte(key))
-		require.NoError(t, err)
-		require.Nil(t, notFound)
+	// Verify negative cases (keys not in block)
+	negatives := []string{
+		"aaa",           // before all keys
+		"key_00_extra",  // between keys
+		"key_99",        // after all keys
+		"missing",       // arbitrary missing key
+		"",              // empty key
+	}
+
+	for _, neg := range negatives {
+		found, ok := block.Get([]byte(neg))
+		require.False(t, ok, "key %s should not be found", neg)
+		require.Nil(t, found, "key %s should not be found", neg)
 	}
 }
 
-func TestBlockGetWithTombstone(t *testing.T) {
+func TestBlockFullSize(t *testing.T) {
+	// Test with a full block (BLOCK_SIZE entries)
+	testBlockWithEntries(t, BLOCK_SIZE)
+}
+
+func TestBlockPartialSize(t *testing.T) {
+	// Test with a partial block (fewer than BLOCK_SIZE entries)
+	// Simulates the last block in an SSTable
+	testBlockWithEntries(t, BLOCK_SIZE-3)
+}
+
+func TestBlockEmpty(t *testing.T) {
+	block, err := NewBlock([]byte{})
+	require.NoError(t, err)
+
+	found, ok := block.Get([]byte("any"))
+	require.False(t, ok)
+	require.Nil(t, found)
+}
+
+func TestBlockWithTombstone(t *testing.T) {
 	// Create a block with a tombstone entry
 	entries := []*common.Entry{
 		{Type: common.EntryTypePut, Seq: 1, Key: []byte("active"), Value: []byte("value")},
@@ -90,19 +98,10 @@ func TestBlockGetWithTombstone(t *testing.T) {
 	block, err := NewBlock(buf.Bytes())
 	require.NoError(t, err)
 
-	// Get should find the tombstone
-	found, err := block.Get([]byte("deleted"))
-	require.NoError(t, err)
+	// Verify tombstone is found
+	found, ok := block.Get([]byte("deleted"))
+	require.True(t, ok)
 	require.NotNil(t, found)
 	require.Equal(t, common.EntryTypeDelete, found.Type)
 	require.Equal(t, uint64(2), found.Seq)
-}
-
-func TestBlockGetEmptyBlock(t *testing.T) {
-	block, err := NewBlock([]byte{})
-	require.NoError(t, err)
-
-	notFound, err := block.Get([]byte("any"))
-	require.NoError(t, err)
-	require.Nil(t, notFound)
 }

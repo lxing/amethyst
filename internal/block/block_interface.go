@@ -2,8 +2,12 @@ package block
 
 import "amethyst/internal/common"
 
+// BLOCK_SIZE is the maximum number of entries per data block.
+// The last block in an SSTable may contain fewer entries.
+const BLOCK_SIZE = 16
+
 // Block provides fast key lookups within a parsed data block.
 type Block interface {
-	// Get returns the entry for the given key, or nil if not found in this block.
-	Get(key []byte) (*common.Entry, error)
+	// Get returns the entry for the given key. Returns (entry, true) if found, (nil, false) if not found.
+	Get(key []byte) (*common.Entry, bool)
 }

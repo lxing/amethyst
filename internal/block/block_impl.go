@@ -35,19 +35,18 @@ func NewBlock(data []byte) (Block, error) {
 }
 
 // Get performs binary search to find the entry for the given key.
-func (b *blockImpl) Get(key []byte) (*common.Entry, error) {
-	// Binary search for the key
+func (b *blockImpl) Get(key []byte) (*common.Entry, bool) {
 	left, right := 0, len(b.entries)
 	for left < right {
 		mid := (left + right) / 2
 		cmp := bytes.Compare(key, b.entries[mid].Key)
 		if cmp == 0 {
-			return b.entries[mid], nil
+			return b.entries[mid], true
 		} else if cmp < 0 {
 			right = mid
 		} else {
 			left = mid + 1
 		}
 	}
-	return nil, nil
+	return nil, false
 }
