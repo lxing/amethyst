@@ -104,7 +104,7 @@ func (d *DB) Put(key, value []byte) error {
 		Key:   bytes.Clone(key),
 		Value: bytes.Clone(value),
 	}
-	if err := d.wal.Append([]*common.Entry{entry}); err != nil {
+	if err := d.wal.WriteEntry([]*common.Entry{entry}); err != nil {
 		return err
 	}
 
@@ -134,7 +134,7 @@ func (d *DB) Delete(key []byte) error {
 		Seq:  d.nextSeq,
 		Key:  bytes.Clone(key),
 	}
-	if err := d.wal.Append([]*common.Entry{entry}); err != nil {
+	if err := d.wal.WriteEntry([]*common.Entry{entry}); err != nil {
 		return err
 	}
 

@@ -21,7 +21,7 @@ func Equal(a, b *common.Entry) bool {
 // WAL defines the minimal contract required by the DB layer to persist
 // and recover write operations.
 type WAL interface {
-	Append(batch []*common.Entry) error
+	WriteEntry(batch []*common.Entry) error
 	Iterator() (common.EntryIterator, error)
 	Len() int
 	Close() error

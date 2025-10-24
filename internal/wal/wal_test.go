@@ -33,7 +33,7 @@ func TestAppendAndIterate(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, log.Append(batch))
+	require.NoError(t, log.WriteEntry(batch))
 
 	iter, err := log.Iterator()
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestPersistsAcrossOpen(t *testing.T) {
 			Value: []byte("v1"),
 		},
 	}
-	require.NoError(t, log.Append(batch1))
+	require.NoError(t, log.WriteEntry(batch1))
 	require.NoError(t, log.Close())
 
 	log, err = wal.NewWAL(path)
@@ -71,7 +71,7 @@ func TestPersistsAcrossOpen(t *testing.T) {
 			Value: []byte("v2"),
 		},
 	}
-	require.NoError(t, log.Append(batch2))
+	require.NoError(t, log.WriteEntry(batch2))
 
 	iter, err := log.Iterator()
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestBulkAppendBatches(t *testing.T) {
 			current = append(current, entry)
 			expected = append(expected, entry)
 		}
-		require.NoError(t, log.Append(current))
+		require.NoError(t, log.WriteEntry(current))
 	}
 
 	iter, err := log.Iterator()

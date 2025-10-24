@@ -36,8 +36,8 @@ func (l *WALImpl) Close() error {
 	return err
 }
 
-// Append persists the provided batch. Entries are written sequentially.
-func (l *WALImpl) Append(batch []*common.Entry) error {
+// WriteEntry persists the provided batch. Entries are written sequentially.
+func (l *WALImpl) WriteEntry(batch []*common.Entry) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -46,35 +46,12 @@ func (l *WALImpl) Append(batch []*common.Entry) error {
 		return errors.New("wal: log is closed")
 	}
 
-	var hdr [1 + 8]byte
-	var varintBuf [binary.MaxVarintLen64]byte
-
 	for _, e := range batch {
 		if e == nil {
 			return errors.New("wal: nil entry")
 		}
-		hdr[0] = byte(e.Type)
-		binary.LittleEndian.PutUint64(hdr[1:], e.Seq)
-		if _, err := l.file.Write(hdr[:]); err != nil {
+		if err := e.Encode(l.file); err != nil {
 			return err
-		}
-		n := binary.PutUvarint(varintBuf[:], uint64(len(e.Key)))
-		if _, err := l.file.Write(varintBuf[:n]); err != nil {
-			return err
-		}
-		n = binary.PutUvarint(varintBuf[:], uint64(len(e.Value)))
-		if _, err := l.file.Write(varintBuf[:n]); err != nil {
-			return err
-		}
-		if len(e.Key) > 0 {
-			if _, err := l.file.Write(e.Key); err != nil {
-				return err
-			}
-		}
-		if len(e.Value) > 0 {
-			if _, err := l.file.Write(e.Value); err != nil {
-				return err
-			}
 		}
 	}
 	l.entryCount += len(batch)

@@ -1,5 +1,10 @@
 package common
 
+import (
+	"encoding/binary"
+	"io"
+)
+
 // FileNo identifies a file (SSTable or WAL).
 type FileNo uint64
 
@@ -27,4 +32,41 @@ type Entry struct {
 // is exhausted. Implementations should close underlying resources separately.
 type EntryIterator interface {
 	Next() (*Entry, error)
+}
+
+// Encode writes an entry to the given writer.
+// Format: type(1) + seq(8) + keyLen(varint) + valueLen(varint) + key + value
+func (e *Entry) Encode(w io.Writer) error {
+	var hdr [1 + 8]byte
+	var varintBuf [binary.MaxVarintLen64]byte
+
+	hdr[0] = byte(e.Type)
+	binary.LittleEndian.PutUint64(hdr[1:], e.Seq)
+	if _, err := w.Write(hdr[:]); err != nil {
+		return err
+	}
+
+	n := binary.PutUvarint(varintBuf[:], uint64(len(e.Key)))
+	if _, err := w.Write(varintBuf[:n]); err != nil {
+		return err
+	}
+
+	n = binary.PutUvarint(varintBuf[:], uint64(len(e.Value)))
+	if _, err := w.Write(varintBuf[:n]); err != nil {
+		return err
+	}
+
+	if len(e.Key) > 0 {
+		if _, err := w.Write(e.Key); err != nil {
+			return err
+		}
+	}
+
+	if len(e.Value) > 0 {
+		if _, err := w.Write(e.Value); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -15,7 +15,7 @@ package sstable
 // ├─────────────────┤
 // │  Index Section  │  Array of {firstKey, blockOffset} entries
 // ├─────────────────┤
-// │     Footer      │  16 bytes: indexOffset + indexCount + magic
+// │     Footer      │  16 bytes: filterOffset + indexOffset
 // └─────────────────┘
 
 const (
@@ -24,20 +24,13 @@ const (
 
 	// FOOTER_SIZE is the size of the footer in bytes.
 	FOOTER_SIZE = 16
-
-	// MAGIC is the file format identifier.
-	MAGIC = 0x53535441 // "SSTA" in hex
 )
 
 // Footer is the last 16 bytes of the SSTable file.
 type Footer struct {
-	IndexOffset uint64 // Offset where index section starts (8 bytes)
-	IndexCount  uint32 // Number of entries in the index (4 bytes)
-	Magic       uint32 // File format magic number (4 bytes)
+	FilterOffset uint64 // Offset where filter section starts (8 bytes)
+	IndexOffset  uint64 // Offset where index section starts (8 bytes)
 }
-
-// Note: Filter section (if present) immediately precedes the index section.
-// Its location is calculated as: filterEnd = IndexOffset
 
 // Entry encoding in data blocks:
 //
