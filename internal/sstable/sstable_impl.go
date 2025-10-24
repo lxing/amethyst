@@ -20,7 +20,7 @@ package sstable
 
 const (
 	// BLOCK_SIZE is the target number of entries per data block.
-	BLOCK_SIZE = 100
+	BLOCK_SIZE = 16
 
 	// FOOTER_SIZE is the size of the footer in bytes.
 	FOOTER_SIZE = 16
