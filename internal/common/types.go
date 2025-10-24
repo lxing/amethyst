@@ -2,8 +2,11 @@ package common
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 )
+
+var ErrIncompleteEntry = errors.New("incomplete entry: unexpected end of data")
 
 // FileNo identifies a file (SSTable or WAL).
 type FileNo uint64
@@ -20,7 +23,8 @@ const (
 	EntryTypeDelete
 )
 
-// Entry captures a single mutation in sequence order.
+// Entry represents a single key-value pair in the database.
+// It supports serialization and deserialization to/from a byte stream.
 type Entry struct {
 	Type  EntryType
 	Seq   uint64
@@ -34,25 +38,25 @@ type EntryIterator interface {
 	Next() (*Entry, error)
 }
 
+// Entry encoding format:
+//
+//   entryType (uint8)   // 0 = Put, 1 = Delete (tombstone)
+//   seq       (uint64)  // Sequence number (little-endian)
+//   keyLen    (uint32)  // Length of key (little-endian)
+//   valueLen  (uint32)  // Length of value (little-endian, 0 for tombstones)
+//   key       ([]byte)  // Key bytes
+//   value     ([]byte)  // Value bytes (omitted if valueLen = 0)
+
 // Encode writes an entry to the given writer.
-// Format: type(1) + seq(8) + keyLen(varint) + valueLen(varint) + key + value
 func (e *Entry) Encode(w io.Writer) error {
-	var hdr [1 + 8]byte
-	var varintBuf [binary.MaxVarintLen64]byte
+	var buf [1 + 8 + 4 + 4]byte
 
-	hdr[0] = byte(e.Type)
-	binary.LittleEndian.PutUint64(hdr[1:], e.Seq)
-	if _, err := w.Write(hdr[:]); err != nil {
-		return err
-	}
+	buf[0] = byte(e.Type)
+	binary.LittleEndian.PutUint64(buf[1:], e.Seq)
+	binary.LittleEndian.PutUint32(buf[9:], uint32(len(e.Key)))
+	binary.LittleEndian.PutUint32(buf[13:], uint32(len(e.Value)))
 
-	n := binary.PutUvarint(varintBuf[:], uint64(len(e.Key)))
-	if _, err := w.Write(varintBuf[:n]); err != nil {
-		return err
-	}
-
-	n = binary.PutUvarint(varintBuf[:], uint64(len(e.Value)))
-	if _, err := w.Write(varintBuf[:n]); err != nil {
+	if _, err := w.Write(buf[:]); err != nil {
 		return err
 	}
 
@@ -72,47 +76,52 @@ func (e *Entry) Encode(w io.Writer) error {
 }
 
 // DecodeEntry reads a single entry from the reader.
-// Returns nil entry on EOF. Returns error on malformed data.
+// Returns (nil, nil) when stream is exhausted (clean EOF).
+// Returns (nil, ErrIncompleteEntry) for incomplete entries (malformed data).
 func DecodeEntry(r io.ByteReader) (*Entry, error) {
-	// Read type (1 byte)
-	typeByte, err := r.ReadByte()
+	// Try to read first byte - EOF here means clean end of stream
+	firstByte, err := r.ReadByte()
 	if err != nil {
-		return nil, err
-	}
-
-	// Read seq (8 bytes)
-	var seqBuf [8]byte
-	for i := 0; i < 8; i++ {
-		seqBuf[i], err = r.ReadByte()
-		if err != nil {
-			return nil, err
+		if err == io.EOF {
+			return nil, nil // Clean end of stream
 		}
-	}
-
-	// Read keyLen (varint)
-	keyLen, err := binary.ReadUvarint(r)
-	if err != nil {
 		return nil, err
 	}
 
-	// Read valueLen (varint)
-	valueLen, err := binary.ReadUvarint(r)
-	if err != nil {
-		return nil, err
+	// Read remaining 16 header bytes: seq(8) + keyLen(4) + valueLen(4)
+	var hdr [16]byte
+	for i := range hdr {
+		b, err := r.ReadByte()
+		if err != nil {
+			return nil, ErrIncompleteEntry
+		}
+		hdr[i] = b
 	}
 
 	entry := &Entry{
-		Type: EntryType(typeByte),
-		Seq:  binary.LittleEndian.Uint64(seqBuf[:]),
+		Type: EntryType(firstByte),
+		Seq:  binary.LittleEndian.Uint64(hdr[0:8]),
 	}
+
+	keyLen := binary.LittleEndian.Uint32(hdr[8:12])
+	valueLen := binary.LittleEndian.Uint32(hdr[12:16])
 
 	// Read key
 	if keyLen > 0 {
 		entry.Key = make([]byte, keyLen)
-		for i := range entry.Key {
-			entry.Key[i], err = r.ReadByte()
-			if err != nil {
-				return nil, err
+		if rdr, ok := r.(io.Reader); ok {
+			// Fast path: read all at once
+			if _, err := io.ReadFull(rdr, entry.Key); err != nil {
+				return nil, ErrIncompleteEntry
+			}
+		} else {
+			// Fallback: byte-by-byte
+			for i := range entry.Key {
+				b, err := r.ReadByte()
+				if err != nil {
+					return nil, ErrIncompleteEntry
+				}
+				entry.Key[i] = b
 			}
 		}
 	}
@@ -120,10 +129,19 @@ func DecodeEntry(r io.ByteReader) (*Entry, error) {
 	// Read value
 	if valueLen > 0 {
 		entry.Value = make([]byte, valueLen)
-		for i := range entry.Value {
-			entry.Value[i], err = r.ReadByte()
-			if err != nil {
-				return nil, err
+		if rdr, ok := r.(io.Reader); ok {
+			// Fast path: read all at once
+			if _, err := io.ReadFull(rdr, entry.Value); err != nil {
+				return nil, ErrIncompleteEntry
+			}
+		} else {
+			// Fallback: byte-by-byte
+			for i := range entry.Value {
+				b, err := r.ReadByte()
+				if err != nil {
+					return nil, ErrIncompleteEntry
+				}
+				entry.Value[i] = b
 			}
 		}
 	}

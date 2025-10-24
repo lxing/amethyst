@@ -29,15 +29,6 @@ type Footer struct {
 	IndexOffset  uint64 // Offset where index section starts (8 bytes)
 }
 
-// Entry encoding in data blocks:
-//
-//   keyLen   (varint)
-//   valueLen (varint)
-//   seq      (uint64)
-//   flags    (uint8)  // 0 = value present, 1 = tombstone
-//   key      ([]byte)
-//   value    ([]byte) // omitted if tombstone
-
 // Index entry encoding:
 //
 //   keyLen       (varint)

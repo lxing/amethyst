@@ -3,7 +3,6 @@ package wal
 import (
 	"bufio"
 	"errors"
-	"io"
 	"os"
 
 	"amethyst/internal/common"
@@ -70,13 +69,10 @@ func (l *WALImpl) Iterator() (common.EntryIterator, error) {
 	for {
 		entry, err := common.DecodeEntry(br)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
 			return nil, err
 		}
 		if entry == nil {
-			break
+			break // Clean end of stream
 		}
 		entries = append(entries, entry)
 	}

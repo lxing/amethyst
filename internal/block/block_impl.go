@@ -2,7 +2,6 @@ package block
 
 import (
 	"bytes"
-	"io"
 
 	"amethyst/internal/common"
 )
@@ -20,13 +19,10 @@ func NewBlock(data []byte) (Block, error) {
 	for {
 		entry, err := common.DecodeEntry(reader)
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return nil, err
 		}
 		if entry == nil {
-			break
+			break // Clean end of stream
 		}
 		entries = append(entries, entry)
 	}
