@@ -56,28 +56,18 @@ func (l *WALImpl) WriteEntry(batch []*common.Entry) error {
 	return l.file.Sync()
 }
 
-// Iterator returns an in-memory iterator over all log entries.
+// Iterator returns a streaming iterator over all log entries.
+// The iterator will automatically close the underlying file when exhausted.
 func (l *WALImpl) Iterator() (common.EntryIterator, error) {
-	r, err := os.Open(l.path)
+	f, err := os.Open(l.path)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
 
-	br := bufio.NewReader(r)
-	entries := make([]*common.Entry, 0)
-	for {
-		entry, err := common.DecodeEntry(br)
-		if err != nil {
-			return nil, err
-		}
-		if entry == nil {
-			break // Clean end of stream
-		}
-		entries = append(entries, entry)
-	}
-
-	return &walIterator{entries: entries}, nil
+	return &walIterator{
+		file:   f,
+		reader: bufio.NewReader(f),
+	}, nil
 }
 
 // Len returns the number of entries written to this WAL.
@@ -86,15 +76,39 @@ func (l *WALImpl) Len() int {
 }
 
 type walIterator struct {
-	entries []*common.Entry
-	index   int
+	file   *os.File
+	reader *bufio.Reader
 }
 
 func (it *walIterator) Next() (*common.Entry, error) {
-	if it.index >= len(it.entries) {
+	if it.file == nil {
+		return nil, nil // Already closed
+	}
+
+	entry, err := common.DecodeEntry(it.reader)
+	if err != nil {
+		// Error during decode - close and return error
+		it.Close()
+		return nil, err
+	}
+
+	if entry == nil {
+		// Clean end of stream - close resources
+		it.Close()
 		return nil, nil
 	}
-	entry := it.entries[it.index]
-	it.index++
+
 	return entry, nil
+}
+
+// Close releases the underlying file handle.
+// Safe to call multiple times.
+func (it *walIterator) Close() error {
+	if it.file == nil {
+		return nil
+	}
+	err := it.file.Close()
+	it.file = nil
+	it.reader = nil
+	return err
 }
