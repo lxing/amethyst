@@ -1,19 +1,55 @@
 package sstable
 
-import "amethyst/internal/common"
+// SSTable File Layout:
+//
+// ┌─────────────────┐
+// │  Data Block 0   │  100 entries, sorted by key (no duplicates)
+// ├─────────────────┤
+// │  Data Block 1   │  100 entries
+// ├─────────────────┤
+// │      ...        │
+// ├─────────────────┤
+// │  Data Block N   │  100 entries (may have fewer in last block)
+// ├─────────────────┤
+// │ Filter Section  │  Bloom filter
+// ├─────────────────┤
+// │  Index Section  │  Array of {firstKey, blockOffset} entries
+// ├─────────────────┤
+// │     Footer      │  16 bytes: indexOffset + indexCount + magic
+// └─────────────────┘
 
-// tableImpl is a placeholder implementation for future lessons.
-type tableImpl struct{}
+const (
+	// BLOCK_SIZE is the target number of entries per data block.
+	BLOCK_SIZE = 100
 
-func (t *tableImpl) Get(key []byte) (value []byte, seq uint64, ok bool, err error) {
-    panic("sstable: Get not implemented")
+	// FOOTER_SIZE is the size of the footer in bytes.
+	FOOTER_SIZE = 16
+
+	// MAGIC is the file format identifier.
+	MAGIC = 0x53535441 // "SSTA" in hex
+)
+
+// Footer is the last 16 bytes of the SSTable file.
+type Footer struct {
+	IndexOffset uint64 // Offset where index section starts (8 bytes)
+	IndexCount  uint32 // Number of entries in the index (4 bytes)
+	Magic       uint32 // File format magic number (4 bytes)
 }
 
-func (t *tableImpl) Path() string {
-    panic("sstable: Path not implemented")
-}
+// Note: Filter section (if present) immediately precedes the index section.
+// Its location is calculated as: filterEnd = IndexOffset
 
-// buildTable is the internal helper students will eventually flesh out.
-func buildTable(path string, entries []*common.Entry, indexInterval int) (Table, error) {
-    panic("sstable: buildTable not implemented")
-}
+// Entry encoding in data blocks:
+//
+//   keyLen   (varint)
+//   valueLen (varint)
+//   seq      (uint64)
+//   flags    (uint8)  // 0 = value present, 1 = tombstone
+//   key      ([]byte)
+//   value    ([]byte) // omitted if tombstone
+
+// Index entry encoding:
+//
+//   keyLen       (varint)
+//   blockOffset  (uint64)
+//   key          ([]byte)  // first key in the block

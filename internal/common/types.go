@@ -1,5 +1,11 @@
 package common
 
+// FileNo identifies a file (SSTable or WAL).
+type FileNo uint64
+
+// BlockNo identifies a block within an SSTable.
+type BlockNo int
+
 // EntryType enumerates logical operations flowing through WAL, memtable,
 // and SSTable components.
 type EntryType uint8
