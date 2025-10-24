@@ -30,8 +30,26 @@ type Footer struct {
 	IndexOffset  uint64 // Offset where index block starts (8 bytes)
 }
 
-// Index entry encoding:
+// Index Block Layout:
 //
-//   keyLen       (varint)
-//   blockOffset  (uint64)
-//   key          ([]byte)  // first key in the block
+// ┌──────────────────┐
+// │    numEntries    │  uint32 - number of data blocks
+// ├──────────────────┤
+// │   IndexEntry 0   │
+// ├──────────────────┤
+// │   IndexEntry 1   │
+// ├──────────────────┤
+// │       ...        │
+// ├──────────────────┤
+// │  IndexEntry N-1  │
+// └──────────────────┘
+//
+// IndexEntry Layout:
+//
+// ┌──────────────────┐
+// │   blockOffset    │  uint64
+// ├──────────────────┤
+// │      keyLen      │  uint32
+// ├──────────────────┤
+// │       key        │  []byte
+// └──────────────────┘

@@ -38,14 +38,21 @@ type EntryIterator interface {
 	Next() (*Entry, error)
 }
 
-// Entry encoding format:
+// Entry Layout:
 //
-//   entryType (uint8)   // 0 = Put, 1 = Delete (tombstone)
-//   seq       (uint64)  // Sequence number (little-endian)
-//   keyLen    (uint32)  // Length of key (little-endian)
-//   valueLen  (uint32)  // Length of value (little-endian, 0 for tombstones)
-//   key       ([]byte)  // Key bytes
-//   value     ([]byte)  // Value bytes (omitted if valueLen = 0)
+// ┌──────────────────┐
+// │    entryType     │  uint8 - 0=Put, 1=Delete
+// ├──────────────────┤
+// │       seq        │  uint64
+// ├──────────────────┤
+// │      keyLen      │  uint32 - len(key)
+// ├──────────────────┤
+// │     valueLen     │  uint32 - len(value), 0 for tombstones
+// ├──────────────────┤
+// │       key        │  []byte
+// ├──────────────────┤
+// │      value       │  []byte
+// └──────────────────┘
 
 // Encode writes an entry to the given writer.
 func (e *Entry) Encode(w io.Writer) error {
@@ -90,12 +97,8 @@ func DecodeEntry(r io.ByteReader) (*Entry, error) {
 
 	// Read remaining 16 header bytes: seq(8) + keyLen(4) + valueLen(4)
 	var hdr [16]byte
-	for i := range hdr {
-		b, err := r.ReadByte()
-		if err != nil {
-			return nil, ErrIncompleteEntry
-		}
-		hdr[i] = b
+	if _, err := io.ReadFull(r.(io.Reader), hdr[:]); err != nil {
+		return nil, ErrIncompleteEntry
 	}
 
 	entry := &Entry{
@@ -109,40 +112,16 @@ func DecodeEntry(r io.ByteReader) (*Entry, error) {
 	// Read key
 	if keyLen > 0 {
 		entry.Key = make([]byte, keyLen)
-		if rdr, ok := r.(io.Reader); ok {
-			// Fast path: read all at once
-			if _, err := io.ReadFull(rdr, entry.Key); err != nil {
-				return nil, ErrIncompleteEntry
-			}
-		} else {
-			// Fallback: byte-by-byte
-			for i := range entry.Key {
-				b, err := r.ReadByte()
-				if err != nil {
-					return nil, ErrIncompleteEntry
-				}
-				entry.Key[i] = b
-			}
+		if _, err := io.ReadFull(r.(io.Reader), entry.Key); err != nil {
+			return nil, ErrIncompleteEntry
 		}
 	}
 
 	// Read value
 	if valueLen > 0 {
 		entry.Value = make([]byte, valueLen)
-		if rdr, ok := r.(io.Reader); ok {
-			// Fast path: read all at once
-			if _, err := io.ReadFull(rdr, entry.Value); err != nil {
-				return nil, ErrIncompleteEntry
-			}
-		} else {
-			// Fallback: byte-by-byte
-			for i := range entry.Value {
-				b, err := r.ReadByte()
-				if err != nil {
-					return nil, ErrIncompleteEntry
-				}
-				entry.Value[i] = b
-			}
+		if _, err := io.ReadFull(r.(io.Reader), entry.Value); err != nil {
+			return nil, ErrIncompleteEntry
 		}
 	}
 
