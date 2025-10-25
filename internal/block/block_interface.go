@@ -4,7 +4,7 @@ import "amethyst/internal/common"
 
 // BLOCK_SIZE is the maximum number of entries per data block.
 // The last block in an SSTable may contain fewer entries.
-const BLOCK_SIZE = 16
+const BLOCK_SIZE = 64
 
 // Block provides fast key lookups within a parsed data block.
 type Block interface {
