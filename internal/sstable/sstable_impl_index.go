@@ -1,6 +1,7 @@
 package sstable
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 )
@@ -76,4 +77,39 @@ func DecodeIndexEntry(r io.Reader) (*IndexEntry, error) {
 	}
 
 	return entry, nil
+}
+
+// Index represents the in-memory parsed index block.
+type Index struct {
+	Entries []IndexEntry // Sorted by Key
+}
+
+// FindBlockOffset returns the block offset for the block that may contain the given key.
+// Returns the offset of the block where entries[i].Key <= key < entries[i+1].Key.
+// Returns (0, false) if the key is before the first block's first key.
+func (idx *Index) FindBlockOffset(key []byte) (uint64, bool) {
+	if len(idx.Entries) == 0 {
+		return 0, false
+	}
+
+	// Check if key is before the first block
+	if bytes.Compare(key, idx.Entries[0].Key) < 0 {
+		return 0, false
+	}
+
+	// Binary search to find the largest entry where entry.Key <= key
+	left, right := 0, len(idx.Entries)
+	for left < right {
+		mid := (left + right) / 2
+		cmp := bytes.Compare(idx.Entries[mid].Key, key)
+		if cmp <= 0 {
+			left = mid + 1
+		} else {
+			right = mid
+		}
+	}
+
+	// left is now the first entry with Key > key
+	// We want the entry before it
+	return idx.Entries[left-1].BlockOffset, true
 }

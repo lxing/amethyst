@@ -60,3 +60,106 @@ func TestIndexEntryEncodeDecode(t *testing.T) {
 		})
 	}
 }
+
+func TestIndexFindBlockOffset(t *testing.T) {
+	idx := &Index{
+		Entries: []IndexEntry{
+			{BlockOffset: 0, Key: []byte("apple")},
+			{BlockOffset: 1000, Key: []byte("banana")},
+			{BlockOffset: 2000, Key: []byte("cherry")},
+			{BlockOffset: 3000, Key: []byte("durian")},
+			{BlockOffset: 4000, Key: []byte("elderberry")},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		key         string
+		wantOffset  uint64
+		wantFound   bool
+	}{
+		{
+			name:       "Before apple",
+			key:        "aardvark",
+			wantOffset: 0,
+			wantFound:  false,
+		},
+		{
+			name:       "Exact match apple",
+			key:        "apple",
+			wantOffset: 0,
+			wantFound:  true,
+		},
+		{
+			name:       "Between apple and banana",
+			key:        "apricot",
+			wantOffset: 0,
+			wantFound:  true,
+		},
+		{
+			name:       "Exact match banana",
+			key:        "banana",
+			wantOffset: 1000,
+			wantFound:  true,
+		},
+		{
+			name:       "Between banana and cherry",
+			key:        "blueberry",
+			wantOffset: 1000,
+			wantFound:  true,
+		},
+		{
+			name:       "Exact match cherry",
+			key:        "cherry",
+			wantOffset: 2000,
+			wantFound:  true,
+		},
+		{
+			name:       "Between cherry and durian",
+			key:        "cranberry",
+			wantOffset: 2000,
+			wantFound:  true,
+		},
+		{
+			name:       "Exact match durian",
+			key:        "durian",
+			wantOffset: 3000,
+			wantFound:  true,
+		},
+		{
+			name:       "Between durian and elderberry",
+			key:        "eggplant",
+			wantOffset: 3000,
+			wantFound:  true,
+		},
+		{
+			name:       "Exact match elderberry",
+			key:        "elderberry",
+			wantOffset: 4000,
+			wantFound:  true,
+		},
+		{
+			name:       "After elderberry",
+			key:        "fig",
+			wantOffset: 4000,
+			wantFound:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			offset, found := idx.FindBlockOffset([]byte(tt.key))
+			require.Equal(t, tt.wantFound, found)
+			if found {
+				require.Equal(t, tt.wantOffset, offset)
+			}
+		})
+	}
+}
+
+func TestIndexFindBlockOffset_EmptyIndex(t *testing.T) {
+	idx := &Index{Entries: []IndexEntry{}}
+	offset, found := idx.FindBlockOffset([]byte("any"))
+	require.False(t, found)
+	require.Equal(t, uint64(0), offset)
+}
