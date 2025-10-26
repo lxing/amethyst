@@ -163,3 +163,45 @@ func TestIndexFindBlockOffset_EmptyIndex(t *testing.T) {
 	require.False(t, found)
 	require.Equal(t, uint64(0), offset)
 }
+
+func TestIndexWriteRead(t *testing.T) {
+	original := &Index{
+		Entries: []IndexEntry{
+			{BlockOffset: 0, Key: []byte("apple")},
+			{BlockOffset: 1000, Key: []byte("banana")},
+			{BlockOffset: 2000, Key: []byte("cherry")},
+		},
+	}
+
+	// Write
+	var buf bytes.Buffer
+	err := WriteIndex(&buf, original)
+	require.NoError(t, err)
+
+	// Read
+	decoded, err := ReadIndex(&buf)
+	require.NoError(t, err)
+	require.NotNil(t, decoded)
+
+	// Verify
+	require.Equal(t, len(original.Entries), len(decoded.Entries))
+	for i := range original.Entries {
+		require.Equal(t, original.Entries[i].BlockOffset, decoded.Entries[i].BlockOffset)
+		require.Equal(t, original.Entries[i].Key, decoded.Entries[i].Key)
+	}
+}
+
+func TestIndexWriteRead_EmptyIndex(t *testing.T) {
+	original := &Index{Entries: []IndexEntry{}}
+
+	// Write
+	var buf bytes.Buffer
+	err := WriteIndex(&buf, original)
+	require.NoError(t, err)
+
+	// Read
+	decoded, err := ReadIndex(&buf)
+	require.NoError(t, err)
+	require.NotNil(t, decoded)
+	require.Equal(t, 0, len(decoded.Entries))
+}

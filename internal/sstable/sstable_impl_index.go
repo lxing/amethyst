@@ -113,3 +113,44 @@ func (idx *Index) FindBlockOffset(key []byte) (uint64, bool) {
 	// We want the entry before it
 	return idx.Entries[left-1].BlockOffset, true
 }
+
+// WriteIndex writes the entire index block to a writer.
+func WriteIndex(w io.Writer, idx *Index) error {
+	// Write numEntries (uint32)
+	var buf [4]byte
+	binary.LittleEndian.PutUint32(buf[:], uint32(len(idx.Entries)))
+	if _, err := w.Write(buf[:]); err != nil {
+		return err
+	}
+
+	// Write each IndexEntry
+	for i := range idx.Entries {
+		if err := idx.Entries[i].Encode(w); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ReadIndex reads an entire index block from a reader.
+func ReadIndex(r io.Reader) (*Index, error) {
+	// Read numEntries (uint32)
+	var buf [4]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return nil, err
+	}
+	numEntries := binary.LittleEndian.Uint32(buf[:])
+
+	// Read each IndexEntry
+	entries := make([]IndexEntry, numEntries)
+	for i := uint32(0); i < numEntries; i++ {
+		entry, err := DecodeIndexEntry(r)
+		if err != nil {
+			return nil, err
+		}
+		entries[i] = *entry
+	}
+
+	return &Index{Entries: entries}, nil
+}
