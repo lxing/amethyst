@@ -4,10 +4,40 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"amethyst/internal/db"
 )
+
+var fruitPairs = [][2]string{
+	{"apple", "artichoke"},
+	{"banana", "broccoli"},
+	{"cherry", "cabbage"},
+	{"durian", "daikon"},
+	{"elderberry", "eggplant"},
+	{"fig", "fennel"},
+	{"grapefruit", "ginger"},
+	{"honeydew", "horseradish"},
+	{"imbe", "ivygourd"},
+	{"jackfruit", "jicama"},
+	{"kiwi", "kale"},
+	{"lime", "leek"},
+	{"mango", "mushroom"},
+	{"nectarine", "nopale"},
+	{"orange", "okra"},
+	{"peach", "peas"},
+	{"quince", "quinoa"},
+	{"raspberry", "radish"},
+	{"strawberry", "spinach"},
+	{"tangerine", "tomato"},
+	{"ugni", "ube"},
+	{"voavanga", "vanilla"},
+	{"watermelon", "watercress"},
+	{"ximenia", "xanthan"},
+	{"yuzu", "yam"},
+	{"zarzamora", "zucchini"},
+}
 
 func main() {
 	engine, err := db.Open()
@@ -17,8 +47,9 @@ func main() {
 	}
 
 	fmt.Println("amethyst LSMT")
-	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | exit")
+	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | seed <x> | exit")
 
+	seedIndex := 0 // Global seed index counter
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
@@ -66,6 +97,31 @@ func main() {
 				continue
 			}
 			fmt.Println("ok")
+		case "seed":
+			if len(parts) != 2 {
+				fmt.Println("usage: seed <x>")
+				continue
+			}
+			x, err := strconv.Atoi(parts[1])
+			if err != nil || x < 1 {
+				fmt.Println("seed: x must be a positive integer")
+				continue
+			}
+			count := 0
+			startIndex := seedIndex
+			for _, pair := range fruitPairs {
+				for i := 0; i < x; i++ {
+					key := fmt.Sprintf("%s%d", pair[0], seedIndex+i)
+					value := fmt.Sprintf("%s%d", pair[1], seedIndex+i)
+					if err := engine.Put([]byte(key), []byte(value)); err != nil {
+						fmt.Printf("seed error: %v\n", err)
+						continue
+					}
+					count++
+				}
+			}
+			seedIndex += x
+			fmt.Printf("seeded %d entries (26 * %d, index %d-%d)\n", count, x, startIndex, seedIndex-1)
 		case "exit", "quit":
 			return
 		default:
