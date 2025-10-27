@@ -45,9 +45,9 @@ type EntryIterator interface {
 // ├──────────────────┤
 // │       seq        │  uint64
 // ├──────────────────┤
-// │      keyLen      │  uint32 - len(key)
+// │      keyLen      │  uint64 - len(key)
 // ├──────────────────┤
-// │     valueLen     │  uint32 - len(value), 0 for tombstones
+// │     valueLen     │  uint64 - len(value), 0 for tombstones
 // ├──────────────────┤
 // │       key        │  []byte
 // ├──────────────────┤
@@ -57,12 +57,12 @@ type EntryIterator interface {
 // Encode writes an entry to the given writer.
 // Returns the number of bytes written.
 func (e *Entry) Encode(w io.Writer) (int, error) {
-	var buf [1 + 8 + 4 + 4]byte
+	var buf [1 + 8 + 8 + 8]byte
 
 	buf[0] = byte(e.Type)
 	binary.LittleEndian.PutUint64(buf[1:], e.Seq)
-	binary.LittleEndian.PutUint32(buf[9:], uint32(len(e.Key)))
-	binary.LittleEndian.PutUint32(buf[13:], uint32(len(e.Value)))
+	binary.LittleEndian.PutUint64(buf[9:], uint64(len(e.Key)))
+	binary.LittleEndian.PutUint64(buf[17:], uint64(len(e.Value)))
 
 	n, err := w.Write(buf[:])
 	if err != nil {
@@ -102,8 +102,8 @@ func DecodeEntry(r io.ByteReader) (*Entry, error) {
 		return nil, err
 	}
 
-	// Read remaining 16 header bytes: seq(8) + keyLen(4) + valueLen(4)
-	var hdr [16]byte
+	// Read remaining 24 header bytes: seq(8) + keyLen(8) + valueLen(8)
+	var hdr [24]byte
 	if _, err := io.ReadFull(r.(io.Reader), hdr[:]); err != nil {
 		return nil, ErrIncompleteEntry
 	}
@@ -113,8 +113,8 @@ func DecodeEntry(r io.ByteReader) (*Entry, error) {
 		Seq:  binary.LittleEndian.Uint64(hdr[0:8]),
 	}
 
-	keyLen := binary.LittleEndian.Uint32(hdr[8:12])
-	valueLen := binary.LittleEndian.Uint32(hdr[12:16])
+	keyLen := binary.LittleEndian.Uint64(hdr[8:16])
+	valueLen := binary.LittleEndian.Uint64(hdr[16:24])
 
 	// Read key
 	if keyLen > 0 {

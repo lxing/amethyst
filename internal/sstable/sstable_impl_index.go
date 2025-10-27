@@ -9,7 +9,7 @@ import (
 // Index Block Layout:
 //
 // ┌──────────────────┐
-// │    numEntries    │  uint32 - number of data blocks
+// │    numEntries    │  uint64 - number of data blocks
 // ├──────────────────┤
 // │   IndexEntry 0   │
 // ├──────────────────┤
@@ -25,7 +25,7 @@ import (
 // ┌──────────────────┐
 // │   blockOffset    │  uint64
 // ├──────────────────┤
-// │      keyLen      │  uint32
+// │      keyLen      │  uint64
 // ├──────────────────┤
 // │       key        │  []byte
 // └──────────────────┘
@@ -38,10 +38,10 @@ type IndexEntry struct {
 
 // Encode writes an index entry to the given writer.
 func (e *IndexEntry) Encode(w io.Writer) error {
-	var buf [8 + 4]byte
+	var buf [8 + 8]byte
 
 	binary.LittleEndian.PutUint64(buf[0:], e.BlockOffset)
-	binary.LittleEndian.PutUint32(buf[8:], uint32(len(e.Key)))
+	binary.LittleEndian.PutUint64(buf[8:], uint64(len(e.Key)))
 
 	if _, err := w.Write(buf[:]); err != nil {
 		return err
@@ -58,7 +58,7 @@ func (e *IndexEntry) Encode(w io.Writer) error {
 
 // DecodeIndexEntry reads a single index entry from the reader.
 func DecodeIndexEntry(r io.Reader) (*IndexEntry, error) {
-	var hdr [8 + 4]byte
+	var hdr [8 + 8]byte
 	if _, err := io.ReadFull(r, hdr[:]); err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func DecodeIndexEntry(r io.Reader) (*IndexEntry, error) {
 		BlockOffset: binary.LittleEndian.Uint64(hdr[0:8]),
 	}
 
-	keyLen := binary.LittleEndian.Uint32(hdr[8:12])
+	keyLen := binary.LittleEndian.Uint64(hdr[8:16])
 
 	if keyLen > 0 {
 		entry.Key = make([]byte, keyLen)
@@ -116,9 +116,9 @@ func (idx *Index) FindBlockOffset(key []byte) (uint64, bool) {
 
 // WriteIndex writes the entire index block to a writer.
 func WriteIndex(w io.Writer, idx *Index) error {
-	// Write numEntries (uint32)
-	var buf [4]byte
-	binary.LittleEndian.PutUint32(buf[:], uint32(len(idx.Entries)))
+	// Write numEntries (uint64)
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], uint64(len(idx.Entries)))
 	if _, err := w.Write(buf[:]); err != nil {
 		return err
 	}
@@ -135,16 +135,16 @@ func WriteIndex(w io.Writer, idx *Index) error {
 
 // ReadIndex reads an entire index block from a reader.
 func ReadIndex(r io.Reader) (*Index, error) {
-	// Read numEntries (uint32)
-	var buf [4]byte
+	// Read numEntries (uint64)
+	var buf [8]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return nil, err
 	}
-	numEntries := binary.LittleEndian.Uint32(buf[:])
+	numEntries := binary.LittleEndian.Uint64(buf[:])
 
 	// Read each IndexEntry
 	entries := make([]IndexEntry, numEntries)
-	for i := uint32(0); i < numEntries; i++ {
+	for i := uint64(0); i < numEntries; i++ {
 		entry, err := DecodeIndexEntry(r)
 		if err != nil {
 			return nil, err

@@ -126,9 +126,9 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	}
 
 	// Calculate index size
-	indexSize := uint64(4) // numEntries
+	indexSize := uint64(8) // numEntries
 	for i := range indexEntries {
-		indexSize += uint64(8 + 4 + len(indexEntries[i].Key))
+		indexSize += uint64(8 + 8 + len(indexEntries[i].Key))
 	}
 	offset += indexSize
 
