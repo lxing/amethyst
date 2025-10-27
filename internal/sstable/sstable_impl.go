@@ -3,6 +3,9 @@ package sstable
 import (
 	"encoding/binary"
 	"io"
+
+	"amethyst/internal/block"
+	"amethyst/internal/common"
 )
 
 // SSTable File Layout:
@@ -54,4 +57,93 @@ func DecodeFooter(r io.Reader) (*Footer, error) {
 		FilterOffset: binary.LittleEndian.Uint64(buf[0:8]),
 		IndexOffset:  binary.LittleEndian.Uint64(buf[8:16]),
 	}, nil
+}
+
+// WriteSSTable writes a complete SSTable from a stream of sorted entries.
+// Returns the total number of bytes written.
+func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
+	var offset uint64
+	var indexEntries []IndexEntry
+	var blockEntryCount int
+	var blockStartOffset uint64
+	var firstBlockKey []byte
+
+	// Stream data blocks
+	for {
+		entry, err := entries.Next()
+		if err != nil {
+			return 0, err
+		}
+		if entry == nil {
+			break // End of stream
+		}
+
+		// Start new block: record offset and first key
+		if blockEntryCount == 0 {
+			blockStartOffset = offset
+			firstBlockKey = make([]byte, len(entry.Key))
+			copy(firstBlockKey, entry.Key)
+		}
+
+		// Write entry to output
+		if err := entry.Encode(w); err != nil {
+			return 0, err
+		}
+
+		// Calculate encoded size to track offset
+		// entryType(1) + seq(8) + keyLen(4) + valueLen(4) + key + value
+		entrySize := uint64(1 + 8 + 4 + 4 + len(entry.Key) + len(entry.Value))
+		offset += entrySize
+		blockEntryCount++
+
+		// Create index entry when block is full
+		if blockEntryCount >= block.BLOCK_SIZE {
+			indexEntry := IndexEntry{
+				BlockOffset: blockStartOffset,
+				Key:         firstBlockKey,
+			}
+			indexEntries = append(indexEntries, indexEntry)
+			blockEntryCount = 0
+			firstBlockKey = nil
+		}
+	}
+
+	// Handle last partial block
+	if blockEntryCount > 0 {
+		indexEntry := IndexEntry{
+			BlockOffset: blockStartOffset,
+			Key:         firstBlockKey,
+		}
+		indexEntries = append(indexEntries, indexEntry)
+	}
+
+	// Write filter block (placeholder)
+	filterOffset := offset
+	// TODO: Implement bloom filter
+
+	// Write index block
+	indexOffset := offset
+	index := &Index{Entries: indexEntries}
+	if err := WriteIndex(w, index); err != nil {
+		return 0, err
+	}
+
+	// Calculate index size
+	indexSize := uint64(4) // numEntries
+	for i := range indexEntries {
+		indexSize += uint64(8 + 4 + len(indexEntries[i].Key))
+	}
+	offset += indexSize
+
+	// Write footer
+	footer := &Footer{
+		FilterOffset: filterOffset,
+		IndexOffset:  indexOffset,
+	}
+	if err := footer.Encode(w); err != nil {
+		return 0, err
+	}
+	offset += FOOTER_SIZE
+
+	return offset, nil
 }
