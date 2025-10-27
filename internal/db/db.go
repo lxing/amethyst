@@ -10,6 +10,7 @@ import (
 	"amethyst/internal/common"
 	"amethyst/internal/manifest"
 	"amethyst/internal/memtable"
+	"amethyst/internal/sstable"
 	"amethyst/internal/wal"
 )
 
@@ -148,18 +149,49 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
+	// Check memtable first
 	entry, ok := d.memtable.Get(key)
-	if !ok {
-		// TODO: Check SSTables
-		return nil, ErrNotFound
+	if ok {
+		// Found in memtable
+		if entry.Type == common.EntryTypeDelete {
+			return nil, ErrNotFound
+		}
+		return bytes.Clone(entry.Value), nil
 	}
 
-	// If it's a tombstone, don't fall through to SSTables
-	if entry.Type == common.EntryTypeDelete {
-		return nil, ErrNotFound
+	// Not in memtable, search SSTables from newest to oldest
+	version := d.manifest.Current()
+	for level, fileNos := range version.Levels {
+		// TODO: Optimize lookup for L1+
+		// L0 files have overlapping ranges, so we must check all files.
+		// L1+ files are non-overlapping within a level, so we can binary search
+		// by key range to find the single file that might contain the key.
+		for _, fileNo := range fileNos {
+			table, err := d.manifest.GetTable(fileNo, level)
+			if err != nil {
+				// Table might not exist yet, continue
+				continue
+			}
+
+			entry, err := table.Get(key)
+			if err == sstable.ErrNotFound {
+				// Not in this table, continue
+				continue
+			}
+			if err != nil {
+				// Real error
+				return nil, err
+			}
+
+			// Found it
+			if entry.Type == common.EntryTypeDelete {
+				return nil, ErrNotFound
+			}
+			return bytes.Clone(entry.Value), nil
+		}
 	}
 
-	return bytes.Clone(entry.Value), nil
+	return nil, ErrNotFound
 }
 
 // flushMemtable writes the current memtable to an SSTable and rotates the WAL.
