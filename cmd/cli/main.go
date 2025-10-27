@@ -10,7 +10,7 @@ import (
 	"amethyst/internal/db"
 )
 
-var fruitPairs = [][2]string{
+var kvPairs = [][2]string{
 	{"apple", "artichoke"},
 	{"banana", "broccoli"},
 	{"cherry", "cabbage"},
@@ -40,13 +40,17 @@ var fruitPairs = [][2]string{
 }
 
 func main() {
-	engine, err := db.Open()
+	walThreshold := 100
+	maxSSTableLevel := 3
+
+	engine, err := db.Open(db.WithWALThreshold(walThreshold), db.WithMaxSSTableLevel(maxSSTableLevel))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Println("amethyst LSMT")
+	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", walThreshold, maxSSTableLevel)
 	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | seed <x> | exit")
 
 	seedIndex := 0 // Global seed index counter
@@ -109,7 +113,7 @@ func main() {
 			}
 			count := 0
 			startIndex := seedIndex
-			for _, pair := range fruitPairs {
+			for _, pair := range kvPairs {
 				for i := 0; i < x; i++ {
 					key := fmt.Sprintf("%s%d", pair[0], seedIndex+i)
 					value := fmt.Sprintf("%s%d", pair[1], seedIndex+i)
