@@ -119,6 +119,53 @@ type SSTableImpl struct {
 	blockCache block_cache.BlockCache
 }
 
+// loadSSTableMetadata reads and parses the footer and index from an open SSTable file.
+func loadSSTableMetadata(f *os.File) (*Footer, *Index, error) {
+	// Get file size
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, nil, err
+	}
+	fileSize := stat.Size()
+
+	if fileSize < FOOTER_SIZE {
+		return nil, nil, io.ErrUnexpectedEOF
+	}
+
+	// Read footer from end of file
+	footerOffset := fileSize - FOOTER_SIZE
+	footerData := make([]byte, FOOTER_SIZE)
+	if _, err := f.ReadAt(footerData, footerOffset); err != nil {
+		return nil, nil, err
+	}
+
+	footer, err := ReadFooter(bytes.NewReader(footerData))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// TODO: Read filter block from footer.FilterOffset to footer.IndexOffset
+	// For now, filter is unimplemented (just a placeholder offset in footer)
+
+	// Read index block
+	indexSize := footerOffset - int64(footer.IndexOffset)
+	if indexSize <= 0 {
+		return nil, nil, io.ErrUnexpectedEOF
+	}
+
+	indexData := make([]byte, indexSize)
+	if _, err := f.ReadAt(indexData, int64(footer.IndexOffset)); err != nil {
+		return nil, nil, err
+	}
+
+	index, err := ReadIndex(bytes.NewReader(indexData))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return footer, index, nil
+}
+
 // OpenSSTable opens an SSTable file and loads its footer and index into memory.
 func OpenSSTable(
 	path string,
@@ -130,54 +177,12 @@ func OpenSSTable(
 		return nil, err
 	}
 
-	// Close file on error, but not on success
-	success := false
-	defer func() {
-		if !success {
-			f.Close()
-		}
-	}()
-
-	// Get file size
-	stat, err := f.Stat()
+	footer, index, err := loadSSTableMetadata(f)
 	if err != nil {
-		return nil, err
-	}
-	fileSize := stat.Size()
-
-	if fileSize < FOOTER_SIZE {
-		return nil, io.ErrUnexpectedEOF
-	}
-
-	// Read footer from end of file
-	footerOffset := fileSize - FOOTER_SIZE
-	footerData := make([]byte, FOOTER_SIZE)
-	if _, err := f.ReadAt(footerData, footerOffset); err != nil {
+		f.Close()
 		return nil, err
 	}
 
-	footer, err := ReadFooter(bytes.NewReader(footerData))
-	if err != nil {
-		return nil, err
-	}
-
-	// Read index block
-	indexSize := footerOffset - int64(footer.IndexOffset)
-	if indexSize <= 0 {
-		return nil, io.ErrUnexpectedEOF
-	}
-
-	indexData := make([]byte, indexSize)
-	if _, err := f.ReadAt(indexData, int64(footer.IndexOffset)); err != nil {
-		return nil, err
-	}
-
-	index, err := ReadIndex(bytes.NewReader(indexData))
-	if err != nil {
-		return nil, err
-	}
-
-	success = true
 	return &SSTableImpl{
 		file:       f,
 		fileNo:     fileNo,
