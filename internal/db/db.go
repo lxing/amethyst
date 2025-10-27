@@ -226,11 +226,40 @@ func (d *DB) flushMemtable() error {
 }
 
 // writeSSTable writes the current memtable to an SSTable file.
-// Stubbed for now - will be implemented when SSTable writer is ready.
+// Must be called with d.mu held.
 func (d *DB) writeSSTable() error {
-	// TODO: Implement SSTable write
-	// 1. Get iterator from memtable
-	// 2. Write all entries to SSTable
-	// 3. Update manifest with new SSTable
+	// Get next SSTable number from manifest
+	v := d.manifest.Current()
+	fileNo := v.NextSSTableNumber
+
+	// Create SSTable file in L0
+	path := fmt.Sprintf("sstable/0/%d.sst", fileNo)
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	// Get sorted entries from memtable
+	iter := d.memtable.Iterator()
+
+	// Write all entries to SSTable
+	_, err = sstable.WriteSSTable(f, iter)
+	if err != nil {
+		f.Close()
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	// Update manifest to add new SSTable to L0
+	edit := &manifest.CompactionEdit{
+		AddSSTables: map[int]map[common.FileNo]struct{}{
+			0: {fileNo: {}},
+		},
+	}
+	d.manifest.Apply(edit)
+
 	return nil
 }
