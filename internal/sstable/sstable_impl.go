@@ -1,7 +1,6 @@
 package sstable
 
 import (
-	"encoding/binary"
 	"io"
 
 	"amethyst/internal/block"
@@ -40,22 +39,28 @@ type Footer struct {
 
 // Encode writes the footer to the given writer.
 func (f *Footer) Encode(w io.Writer) error {
-	var buf [FOOTER_SIZE]byte
-	binary.LittleEndian.PutUint64(buf[0:8], f.FilterOffset)
-	binary.LittleEndian.PutUint64(buf[8:16], f.IndexOffset)
-	_, err := w.Write(buf[:])
-	return err
+	if _, err := common.WriteUint64(w, f.FilterOffset); err != nil {
+		return err
+	}
+	if _, err := common.WriteUint64(w, f.IndexOffset); err != nil {
+		return err
+	}
+	return nil
 }
 
 // DecodeFooter reads a footer from the reader.
 func DecodeFooter(r io.Reader) (*Footer, error) {
-	var buf [FOOTER_SIZE]byte
-	if _, err := io.ReadFull(r, buf[:]); err != nil {
+	filterOffset, err := common.ReadUint64(r)
+	if err != nil {
+		return nil, err
+	}
+	indexOffset, err := common.ReadUint64(r)
+	if err != nil {
 		return nil, err
 	}
 	return &Footer{
-		FilterOffset: binary.LittleEndian.Uint64(buf[0:8]),
-		IndexOffset:  binary.LittleEndian.Uint64(buf[8:16]),
+		FilterOffset: filterOffset,
+		IndexOffset:  indexOffset,
 	}, nil
 }
 

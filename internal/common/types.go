@@ -1,7 +1,6 @@
 package common
 
 import (
-	"encoding/binary"
 	"errors"
 	"io"
 )
@@ -57,21 +56,34 @@ type EntryIterator interface {
 // Encode writes an entry to the given writer.
 // Returns the number of bytes written.
 func (e *Entry) Encode(w io.Writer) (int, error) {
-	var buf [1 + 8 + 8 + 8]byte
+	total := 0
 
-	buf[0] = byte(e.Type)
-	binary.LittleEndian.PutUint64(buf[1:], e.Seq)
-	binary.LittleEndian.PutUint64(buf[9:], uint64(len(e.Key)))
-	binary.LittleEndian.PutUint64(buf[17:], uint64(len(e.Value)))
-
-	n, err := w.Write(buf[:])
+	n, err := WriteUint8(w, uint8(e.Type))
+	total += n
 	if err != nil {
-		return n, err
+		return total, err
 	}
-	total := n
+
+	n, err = WriteUint64(w, e.Seq)
+	total += n
+	if err != nil {
+		return total, err
+	}
+
+	n, err = WriteUint64(w, uint64(len(e.Key)))
+	total += n
+	if err != nil {
+		return total, err
+	}
+
+	n, err = WriteUint64(w, uint64(len(e.Value)))
+	total += n
+	if err != nil {
+		return total, err
+	}
 
 	if len(e.Key) > 0 {
-		n, err := w.Write(e.Key)
+		n, err = WriteBytes(w, e.Key)
 		total += n
 		if err != nil {
 			return total, err
@@ -79,7 +91,7 @@ func (e *Entry) Encode(w io.Writer) (int, error) {
 	}
 
 	if len(e.Value) > 0 {
-		n, err := w.Write(e.Value)
+		n, err = WriteBytes(w, e.Value)
 		total += n
 		if err != nil {
 			return total, err
@@ -93,43 +105,44 @@ func (e *Entry) Encode(w io.Writer) (int, error) {
 // Returns (nil, nil) when stream is exhausted (clean EOF).
 // Returns (nil, ErrIncompleteEntry) for incomplete entries (malformed data).
 func DecodeEntry(r io.ByteReader) (*Entry, error) {
-	// Try to read first byte - EOF here means clean end of stream
 	firstByte, err := r.ReadByte()
 	if err != nil {
 		if err == io.EOF {
-			return nil, nil // Clean end of stream
+			return nil, nil
 		}
 		return nil, err
 	}
 
-	// Read remaining 24 header bytes: seq(8) + keyLen(8) + valueLen(8)
-	var hdr [24]byte
-	if _, err := io.ReadFull(r.(io.Reader), hdr[:]); err != nil {
+	reader := r.(io.Reader)
+
+	seq, err := ReadUint64(reader)
+	if err != nil {
+		return nil, ErrIncompleteEntry
+	}
+
+	keyLen, err := ReadUint64(reader)
+	if err != nil {
+		return nil, ErrIncompleteEntry
+	}
+
+	valueLen, err := ReadUint64(reader)
+	if err != nil {
 		return nil, ErrIncompleteEntry
 	}
 
 	entry := &Entry{
 		Type: EntryType(firstByte),
-		Seq:  binary.LittleEndian.Uint64(hdr[0:8]),
+		Seq:  seq,
 	}
 
-	keyLen := binary.LittleEndian.Uint64(hdr[8:16])
-	valueLen := binary.LittleEndian.Uint64(hdr[16:24])
-
-	// Read key
-	if keyLen > 0 {
-		entry.Key = make([]byte, keyLen)
-		if _, err := io.ReadFull(r.(io.Reader), entry.Key); err != nil {
-			return nil, ErrIncompleteEntry
-		}
+	entry.Key, err = ReadBytes(reader, keyLen)
+	if err != nil {
+		return nil, ErrIncompleteEntry
 	}
 
-	// Read value
-	if valueLen > 0 {
-		entry.Value = make([]byte, valueLen)
-		if _, err := io.ReadFull(r.(io.Reader), entry.Value); err != nil {
-			return nil, ErrIncompleteEntry
-		}
+	entry.Value, err = ReadBytes(reader, valueLen)
+	if err != nil {
+		return nil, ErrIncompleteEntry
 	}
 
 	return entry, nil
