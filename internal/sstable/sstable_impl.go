@@ -115,55 +115,57 @@ type SSTableImpl struct {
 	file       *os.File
 	fileNo     common.FileNo
 	footer     *Footer
+	filter     *Filter
 	index      *Index
 	blockCache block_cache.BlockCache
 }
 
-// loadSSTableMetadata reads and parses the footer and index from an open SSTable file.
-func loadSSTableMetadata(f *os.File) (*Footer, *Index, error) {
+// loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
+func loadSSTableMetadata(f *os.File) (*Footer, *Filter, *Index, error) {
 	// Get file size
 	stat, err := f.Stat()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	fileSize := stat.Size()
 
 	if fileSize < FOOTER_SIZE {
-		return nil, nil, io.ErrUnexpectedEOF
+		return nil, nil, nil, io.ErrUnexpectedEOF
 	}
 
 	// Read footer from end of file
 	footerOffset := fileSize - FOOTER_SIZE
 	footerData := make([]byte, FOOTER_SIZE)
 	if _, err := f.ReadAt(footerData, footerOffset); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	footer, err := ReadFooter(bytes.NewReader(footerData))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// TODO: Read filter block from footer.FilterOffset to footer.IndexOffset
 	// For now, filter is unimplemented (just a placeholder offset in footer)
+	var filter *Filter = nil
 
 	// Read index block
 	indexSize := footerOffset - int64(footer.IndexOffset)
 	if indexSize <= 0 {
-		return nil, nil, io.ErrUnexpectedEOF
+		return nil, nil, nil, io.ErrUnexpectedEOF
 	}
 
 	indexData := make([]byte, indexSize)
 	if _, err := f.ReadAt(indexData, int64(footer.IndexOffset)); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	index, err := ReadIndex(bytes.NewReader(indexData))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return footer, index, nil
+	return footer, filter, index, nil
 }
 
 // OpenSSTable opens an SSTable file and loads its footer and index into memory.
@@ -177,7 +179,7 @@ func OpenSSTable(
 		return nil, err
 	}
 
-	footer, index, err := loadSSTableMetadata(f)
+	footer, filter, index, err := loadSSTableMetadata(f)
 	if err != nil {
 		f.Close()
 		return nil, err
@@ -187,6 +189,7 @@ func OpenSSTable(
 		file:       f,
 		fileNo:     fileNo,
 		footer:     footer,
+		filter:     filter,
 		index:      index,
 		blockCache: blockCache,
 	}, nil
