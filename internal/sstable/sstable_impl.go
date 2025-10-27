@@ -28,54 +28,6 @@ import (
 //                 │     Footer     │  footer: {filterOffset, indexOffset}
 //                 └────────────────┘
 
-const (
-	// FOOTER_SIZE is the size of the footer in bytes.
-	// footerOffset = len(sstable) - FOOTER_SIZE
-	FOOTER_SIZE = 16
-)
-
-// Footer is the last 16 bytes of the SSTable file.
-type Footer struct {
-	FilterOffset uint64 // Offset where filter block starts (8 bytes)
-	IndexOffset  uint64 // Offset where index block starts (8 bytes)
-}
-
-// WriteFooter writes the footer to the given writer.
-// Returns the number of bytes written.
-func WriteFooter(w io.Writer, f *Footer) (int, error) {
-	total := 0
-
-	n, err := common.WriteUint64(w, f.FilterOffset)
-	total += n
-	if err != nil {
-		return total, err
-	}
-
-	n, err = common.WriteUint64(w, f.IndexOffset)
-	total += n
-	if err != nil {
-		return total, err
-	}
-
-	return total, nil
-}
-
-// ReadFooter reads a footer from the reader.
-func ReadFooter(r io.Reader) (*Footer, error) {
-	filterOffset, err := common.ReadUint64(r)
-	if err != nil {
-		return nil, err
-	}
-	indexOffset, err := common.ReadUint64(r)
-	if err != nil {
-		return nil, err
-	}
-	return &Footer{
-		FilterOffset: filterOffset,
-		IndexOffset:  indexOffset,
-	}, nil
-}
-
 // WriteSSTable writes a complete SSTable from a stream of sorted entries.
 // Returns the total number of bytes written.
 func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
@@ -168,22 +120,32 @@ type SSTableImpl struct {
 }
 
 // OpenSSTable opens an SSTable file and loads its footer and index into memory.
-func OpenSSTable(path string, fileNo common.FileNo, blockCache block_cache.BlockCache) (*SSTableImpl, error) {
+func OpenSSTable(
+	path string,
+	fileNo common.FileNo,
+	blockCache block_cache.BlockCache,
+) (*SSTableImpl, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 
+	// Close file on error, but not on success
+	success := false
+	defer func() {
+		if !success {
+			f.Close()
+		}
+	}()
+
 	// Get file size
 	stat, err := f.Stat()
 	if err != nil {
-		f.Close()
 		return nil, err
 	}
 	fileSize := stat.Size()
 
 	if fileSize < FOOTER_SIZE {
-		f.Close()
 		return nil, io.ErrUnexpectedEOF
 	}
 
@@ -191,35 +153,31 @@ func OpenSSTable(path string, fileNo common.FileNo, blockCache block_cache.Block
 	footerOffset := fileSize - FOOTER_SIZE
 	footerData := make([]byte, FOOTER_SIZE)
 	if _, err := f.ReadAt(footerData, footerOffset); err != nil {
-		f.Close()
 		return nil, err
 	}
 
 	footer, err := ReadFooter(bytes.NewReader(footerData))
 	if err != nil {
-		f.Close()
 		return nil, err
 	}
 
 	// Read index block
 	indexSize := footerOffset - int64(footer.IndexOffset)
 	if indexSize <= 0 {
-		f.Close()
 		return nil, io.ErrUnexpectedEOF
 	}
 
 	indexData := make([]byte, indexSize)
 	if _, err := f.ReadAt(indexData, int64(footer.IndexOffset)); err != nil {
-		f.Close()
 		return nil, err
 	}
 
 	index, err := ReadIndex(bytes.NewReader(indexData))
 	if err != nil {
-		f.Close()
 		return nil, err
 	}
 
+	success = true
 	return &SSTableImpl{
 		file:       f,
 		fileNo:     fileNo,
