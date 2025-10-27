@@ -111,8 +111,8 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	return offset, nil
 }
 
-// SSTableImpl provides random access to entries in an SSTable file.
-type SSTableImpl struct {
+// sstableImpl provides random access to entries in an SSTable file.
+type sstableImpl struct {
 	file       *os.File
 	fileNo     common.FileNo
 	footer     *Footer
@@ -121,7 +121,7 @@ type SSTableImpl struct {
 	blockCache block_cache.BlockCache
 }
 
-var _ SSTable = (*SSTableImpl)(nil)
+var _ SSTable = (*sstableImpl)(nil)
 
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
 func loadSSTableMetadata(f *os.File) (*Footer, filter.Filter, *Index, error) {
@@ -176,7 +176,7 @@ func OpenSSTable(
 	path string,
 	fileNo common.FileNo,
 	blockCache block_cache.BlockCache,
-) (*SSTableImpl, error) {
+) (*sstableImpl, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -188,7 +188,7 @@ func OpenSSTable(
 		return nil, err
 	}
 
-	return &SSTableImpl{
+	return &sstableImpl{
 		file:       f,
 		fileNo:     fileNo,
 		footer:     footer,
@@ -200,7 +200,7 @@ func OpenSSTable(
 
 // Get looks up the entry for the given key.
 // Returns ErrNotFound if the key does not exist.
-func (s *SSTableImpl) Get(key []byte) (*common.Entry, error) {
+func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 	// Find which block might contain this key
 	blockOffset, found := s.index.FindBlockOffset(key)
 	if !found {
@@ -268,7 +268,7 @@ func (s *SSTableImpl) Get(key []byte) (*common.Entry, error) {
 }
 
 // Close releases the underlying file handle.
-func (s *SSTableImpl) Close() error {
+func (s *sstableImpl) Close() error {
 	if s.file == nil {
 		return nil
 	}
@@ -278,7 +278,7 @@ func (s *SSTableImpl) Close() error {
 }
 
 // Iterator returns an iterator that sequentially scans all entries in the SSTable.
-func (s *SSTableImpl) Iterator() common.EntryIterator {
+func (s *sstableImpl) Iterator() common.EntryIterator {
 	// TODO: Implement sequential scan through all blocks
 	return &sstableIterator{}
 }

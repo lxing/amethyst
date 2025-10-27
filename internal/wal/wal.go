@@ -8,26 +8,26 @@ import (
 	"amethyst/internal/common"
 )
 
-// WALImpl appends entries to a single file on disk.
-type WALImpl struct {
+// walImpl appends entries to a single file on disk.
+type walImpl struct {
 	file       *os.File
 	path       string
 	entryCount int
 }
 
-var _ WAL = (*WALImpl)(nil)
+var _ WAL = (*walImpl)(nil)
 
 // NewWAL creates (or reopens) a WAL file at path.
-func NewWAL(path string) (*WALImpl, error) {
+func NewWAL(path string) (*walImpl, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, err
 	}
-	return &WALImpl{file: f, path: path}, nil
+	return &walImpl{file: f, path: path}, nil
 }
 
 // Close releases the underlying file handle.
-func (l *WALImpl) Close() error {
+func (l *walImpl) Close() error {
 	if l.file == nil {
 		return nil
 	}
@@ -37,7 +37,7 @@ func (l *WALImpl) Close() error {
 }
 
 // WriteEntry persists the provided batch. Entries are written sequentially.
-func (l *WALImpl) WriteEntry(batch []*common.Entry) error {
+func (l *walImpl) WriteEntry(batch []*common.Entry) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -57,7 +57,7 @@ func (l *WALImpl) WriteEntry(batch []*common.Entry) error {
 
 // Iterator returns a streaming iterator over all log entries.
 // The iterator will automatically close the underlying file when exhausted.
-func (l *WALImpl) Iterator() (common.EntryIterator, error) {
+func (l *walImpl) Iterator() (common.EntryIterator, error) {
 	f, err := os.Open(l.path)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (l *WALImpl) Iterator() (common.EntryIterator, error) {
 }
 
 // Len returns the number of entries written to this WAL.
-func (l *WALImpl) Len() int {
+func (l *walImpl) Len() int {
 	return l.entryCount
 }
 

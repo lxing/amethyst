@@ -6,23 +6,23 @@ import (
 	"amethyst/internal/common"
 )
 
-// MapMemtableImpl is the baseline Go map-backed implementation.
-type MapMemtableImpl struct {
+// mapMemtableImpl is the baseline Go map-backed implementation.
+type mapMemtableImpl struct {
 	items map[string]*common.Entry
 	next  uint64
 }
 
-var _ Memtable = (*MapMemtableImpl)(nil)
+var _ Memtable = (*mapMemtableImpl)(nil)
 
 // NewMapMemtable returns the default map-backed memtable implementation.
 func NewMapMemtable() Memtable {
-	return &MapMemtableImpl{
+	return &mapMemtableImpl{
 		items: make(map[string]*common.Entry),
 	}
 }
 
 // Put records or overwrites a key/value pair using the provided key and value.
-func (m *MapMemtableImpl) Put(key, value []byte) {
+func (m *mapMemtableImpl) Put(key, value []byte) {
 	m.next++
 	m.items[string(key)] = &common.Entry{
 		Type:  common.EntryTypePut,
@@ -32,7 +32,7 @@ func (m *MapMemtableImpl) Put(key, value []byte) {
 }
 
 // Delete installs a tombstone for the given key.
-func (m *MapMemtableImpl) Delete(key []byte) {
+func (m *mapMemtableImpl) Delete(key []byte) {
 	m.next++
 	m.items[string(key)] = &common.Entry{
 		Type: common.EntryTypeDelete,
@@ -41,7 +41,7 @@ func (m *MapMemtableImpl) Delete(key []byte) {
 }
 
 // Get returns the most recent entry for key, if any.
-func (m *MapMemtableImpl) Get(key []byte) (*common.Entry, bool) {
+func (m *mapMemtableImpl) Get(key []byte) (*common.Entry, bool) {
 	entry, ok := m.items[string(key)]
 	if !ok {
 		return nil, false
@@ -56,7 +56,7 @@ func (m *MapMemtableImpl) Get(key []byte) (*common.Entry, bool) {
 }
 
 // Iterator returns a stable snapshot iterator over the current entries.
-func (m *MapMemtableImpl) Iterator() common.EntryIterator {
+func (m *mapMemtableImpl) Iterator() common.EntryIterator {
 	keys := make([]string, 0, len(m.items))
 	for k := range m.items {
 		keys = append(keys, k)

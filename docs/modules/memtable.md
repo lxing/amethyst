@@ -5,7 +5,7 @@ Provide the in-memory write buffer that absorbs mutations before they are persis
 
 ## Key Types
 - `Memtable` interface with `Put`, `Get`, `Delete`, `ApproximateSize`, and `NewIterator`.
-- `MapMemtableImpl` reference class living in `internal/memtable/map_impl.go` for baseline behavior.
+- `mapMemtableImpl` reference class living in `internal/memtable/map.go` for baseline behavior.
 - `Iterator` abstraction shared with SSTables, exposing `First`, `Seek`, `Key`, and `Value`.
 
 ## Integration Points
