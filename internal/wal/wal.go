@@ -15,6 +15,8 @@ type WALImpl struct {
 	entryCount int
 }
 
+var _ WAL = (*WALImpl)(nil)
+
 // NewWAL creates (or reopens) a WAL file at path.
 func NewWAL(path string) (*WALImpl, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
@@ -76,6 +78,8 @@ type walIterator struct {
 	file   *os.File
 	reader *bufio.Reader
 }
+
+var _ common.EntryIterator = (*walIterator)(nil)
 
 func (it *walIterator) Next() (*common.Entry, error) {
 	if it.file == nil {

@@ -4,6 +4,8 @@ package filter
 // Used as a placeholder until bloom filter is implemented.
 type NoOpFilter struct{}
 
+var _ Filter = (*NoOpFilter)(nil)
+
 // MayContain always returns true, meaning no filtering is performed.
 func (f *NoOpFilter) MayContain(key []byte) bool {
 	return true

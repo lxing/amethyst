@@ -30,6 +30,8 @@ func NewBlock(data []byte) (Block, error) {
 	return &blockImpl{entries: entries}, nil
 }
 
+var _ Block = (*blockImpl)(nil)
+
 // Get performs binary search to find the entry for the given key.
 func (b *blockImpl) Get(key []byte) (*common.Entry, bool) {
 	left, right := 0, len(b.entries)

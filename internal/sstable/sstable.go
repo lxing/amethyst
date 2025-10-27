@@ -121,6 +121,8 @@ type SSTableImpl struct {
 	blockCache block_cache.BlockCache
 }
 
+var _ SSTable = (*SSTableImpl)(nil)
+
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
 func loadSSTableMetadata(f *os.File) (*Footer, filter.Filter, *Index, error) {
 	// Get file size
@@ -283,7 +285,6 @@ type sstableIterator struct {
 	// TODO: Add fields for tracking current block, position, etc.
 }
 
-// Compile-time check that sstableIterator implements EntryIterator
 var _ common.EntryIterator = (*sstableIterator)(nil)
 
 // Next returns the next entry in the SSTable.

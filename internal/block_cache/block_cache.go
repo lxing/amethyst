@@ -8,6 +8,8 @@ import (
 // lruCache is a placeholder LRU cache implementation.
 type lruCache struct{}
 
+var _ BlockCache = (*lruCache)(nil)
+
 func (c *lruCache) Get(fileNo common.FileNo, blockNo common.BlockNo) (block.Block, bool) {
 	return nil, false
 }

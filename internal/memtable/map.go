@@ -12,6 +12,8 @@ type MapMemtableImpl struct {
 	next  uint64
 }
 
+var _ Memtable = (*MapMemtableImpl)(nil)
+
 // NewMapMemtable returns the default map-backed memtable implementation.
 func NewMapMemtable() Memtable {
 	return &MapMemtableImpl{
