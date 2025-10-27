@@ -37,9 +37,9 @@ type Footer struct {
 	IndexOffset  uint64 // Offset where index block starts (8 bytes)
 }
 
-// Encode writes the footer to the given writer.
+// WriteFooter writes the footer to the given writer.
 // Returns the number of bytes written.
-func (f *Footer) Encode(w io.Writer) (int, error) {
+func WriteFooter(w io.Writer, f *Footer) (int, error) {
 	total := 0
 
 	n, err := common.WriteUint64(w, f.FilterOffset)
@@ -57,8 +57,8 @@ func (f *Footer) Encode(w io.Writer) (int, error) {
 	return total, nil
 }
 
-// DecodeFooter reads a footer from the reader.
-func DecodeFooter(r io.Reader) (*Footer, error) {
+// ReadFooter reads a footer from the reader.
+func ReadFooter(r io.Reader) (*Footer, error) {
 	filterOffset, err := common.ReadUint64(r)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 		}
 
 		// Write entry to output
-		n, err := entry.Encode(w)
+		n, err := common.WriteEntry(w, entry)
 		if err != nil {
 			return 0, err
 		}
@@ -146,7 +146,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 		FilterOffset: filterOffset,
 		IndexOffset:  indexOffset,
 	}
-	n, err = footer.Encode(w)
+	n, err = WriteFooter(w, footer)
 	if err != nil {
 		return 0, err
 	}

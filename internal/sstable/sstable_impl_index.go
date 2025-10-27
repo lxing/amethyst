@@ -37,9 +37,9 @@ type IndexEntry struct {
 	Key         []byte // First key in the data block
 }
 
-// Encode writes an index entry to the given writer.
+// WriteIndexEntry writes an index entry to the given writer.
 // Returns the number of bytes written.
-func (e *IndexEntry) Encode(w io.Writer) (int, error) {
+func WriteIndexEntry(w io.Writer, e *IndexEntry) (int, error) {
 	total := 0
 
 	n, err := common.WriteUint64(w, e.BlockOffset)
@@ -65,8 +65,8 @@ func (e *IndexEntry) Encode(w io.Writer) (int, error) {
 	return total, nil
 }
 
-// DecodeIndexEntry reads a single index entry from the reader.
-func DecodeIndexEntry(r io.Reader) (*IndexEntry, error) {
+// ReadIndexEntry reads a single index entry from the reader.
+func ReadIndexEntry(r io.Reader) (*IndexEntry, error) {
 	blockOffset, err := common.ReadUint64(r)
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func WriteIndex(w io.Writer, idx *Index) (int, error) {
 	}
 
 	for i := range idx.Entries {
-		n, err = idx.Entries[i].Encode(w)
+		n, err = WriteIndexEntry(w, &idx.Entries[i])
 		total += n
 		if err != nil {
 			return total, err
@@ -150,7 +150,7 @@ func ReadIndex(r io.Reader) (*Index, error) {
 	}
 	entries := make([]IndexEntry, numEntries)
 	for i := uint64(0); i < numEntries; i++ {
-		entry, err := DecodeIndexEntry(r)
+		entry, err := ReadIndexEntry(r)
 		if err != nil {
 			return nil, err
 		}

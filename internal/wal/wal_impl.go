@@ -45,7 +45,7 @@ func (l *WALImpl) WriteEntry(batch []*common.Entry) error {
 	}
 
 	for _, e := range batch {
-		if _, err := e.Encode(l.file); err != nil {
+		if _, err := common.WriteEntry(l.file, e); err != nil {
 			return err
 		}
 	}
@@ -82,7 +82,7 @@ func (it *walIterator) Next() (*common.Entry, error) {
 		return nil, nil // Already closed
 	}
 
-	entry, err := common.DecodeEntry(it.reader)
+	entry, err := common.ReadEntry(it.reader)
 	if err != nil {
 		// Error during decode - close and return error
 		it.Close()

@@ -46,12 +46,12 @@ func TestIndexEntryEncodeDecode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encode
 			var buf bytes.Buffer
-			n, err := tt.entry.Encode(&buf)
+			n, err := WriteIndexEntry(&buf, tt.entry)
 			require.NoError(t, err)
 			require.Equal(t, n, buf.Len())
 
 			// Decode
-			decoded, err := DecodeIndexEntry(&buf)
+			decoded, err := ReadIndexEntry(&buf)
 			require.NoError(t, err)
 			require.NotNil(t, decoded)
 

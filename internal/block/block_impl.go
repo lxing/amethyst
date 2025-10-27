@@ -17,7 +17,7 @@ func NewBlock(data []byte) (Block, error) {
 	reader := bytes.NewReader(data)
 
 	for {
-		entry, err := common.DecodeEntry(reader)
+		entry, err := common.ReadEntry(reader)
 		if err != nil {
 			return nil, err
 		}

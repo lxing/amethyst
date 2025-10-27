@@ -54,12 +54,12 @@ func TestEntryEncodeDecode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encode
 			var buf bytes.Buffer
-			n, err := tt.entry.Encode(&buf)
+			n, err := WriteEntry(&buf, tt.entry)
 			require.NoError(t, err)
 			require.Equal(t, n, buf.Len(), "returned byte count should match buffer size")
 
 			// Decode
-			decoded, err := DecodeEntry(&buf)
+			decoded, err := ReadEntry(&buf)
 			require.NoError(t, err)
 			require.NotNil(t, decoded)
 
@@ -72,15 +72,15 @@ func TestEntryEncodeDecode(t *testing.T) {
 	}
 }
 
-func TestDecodeEntryEOF(t *testing.T) {
+func TestReadEntryEOF(t *testing.T) {
 	// Empty buffer should return (nil, nil)
 	var buf bytes.Buffer
-	entry, err := DecodeEntry(&buf)
+	entry, err := ReadEntry(&buf)
 	require.NoError(t, err)
 	require.Nil(t, entry)
 }
 
-func TestDecodeEntryIncomplete(t *testing.T) {
+func TestReadEntryIncomplete(t *testing.T) {
 	tests := []struct {
 		name string
 		data []byte
@@ -115,7 +115,7 @@ func TestDecodeEntryIncomplete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(tt.data)
-			entry, err := DecodeEntry(buf)
+			entry, err := ReadEntry(buf)
 			require.ErrorIs(t, err, ErrIncompleteEntry)
 			require.Nil(t, entry)
 		})

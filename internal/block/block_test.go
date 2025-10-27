@@ -29,7 +29,7 @@ func testBlockWithEntries(t *testing.T, n int) {
 	// Encode all entries into a block
 	var buf bytes.Buffer
 	for _, e := range entries {
-		_, err := e.Encode(&buf)
+		_, err := common.WriteEntry(&buf, e)
 		require.NoError(t, err)
 	}
 
@@ -93,7 +93,7 @@ func TestBlockWithTombstone(t *testing.T) {
 
 	var buf bytes.Buffer
 	for _, e := range entries {
-		_, err := e.Encode(&buf)
+		_, err := common.WriteEntry(&buf, e)
 		require.NoError(t, err)
 	}
 

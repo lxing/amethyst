@@ -40,13 +40,13 @@ func TestFooterEncodeDecode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encode
 			var buf bytes.Buffer
-			n, err := tt.footer.Encode(&buf)
+			n, err := WriteFooter(&buf, &tt.footer)
 			require.NoError(t, err)
 			require.Equal(t, FOOTER_SIZE, n)
 			require.Equal(t, FOOTER_SIZE, buf.Len())
 
 			// Decode
-			decoded, err := DecodeFooter(&buf)
+			decoded, err := ReadFooter(&buf)
 			require.NoError(t, err)
 			require.NotNil(t, decoded)
 			require.Equal(t, tt.footer.FilterOffset, decoded.FilterOffset)
@@ -90,7 +90,7 @@ func TestWriteSSTable(t *testing.T) {
 	// Read and verify footer (last FOOTER_SIZE bytes)
 	data := buf.Bytes()
 	footerData := data[len(data)-FOOTER_SIZE:]
-	footer, err := DecodeFooter(bytes.NewReader(footerData))
+	footer, err := ReadFooter(bytes.NewReader(footerData))
 	require.NoError(t, err)
 	require.NotNil(t, footer)
 

@@ -53,9 +53,9 @@ type EntryIterator interface {
 // │      value       │  []byte
 // └──────────────────┘
 
-// Encode writes an entry to the given writer.
+// WriteEntry writes an entry to the given writer.
 // Returns the number of bytes written.
-func (e *Entry) Encode(w io.Writer) (int, error) {
+func WriteEntry(w io.Writer, e *Entry) (int, error) {
 	total := 0
 
 	n, err := WriteUint8(w, uint8(e.Type))
@@ -101,10 +101,10 @@ func (e *Entry) Encode(w io.Writer) (int, error) {
 	return total, nil
 }
 
-// DecodeEntry reads a single entry from the reader.
+// ReadEntry reads a single entry from the reader.
 // Returns (nil, nil) when stream is exhausted (clean EOF).
 // Returns (nil, ErrIncompleteEntry) for incomplete entries (malformed data).
-func DecodeEntry(r io.ByteReader) (*Entry, error) {
+func ReadEntry(r io.ByteReader) (*Entry, error) {
 	firstByte, err := r.ReadByte()
 	if err != nil {
 		if err == io.EOF {
