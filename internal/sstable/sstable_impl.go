@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"amethyst/internal/block"
+	"amethyst/internal/block_cache"
 	"amethyst/internal/common"
 )
 
@@ -157,15 +158,17 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	return offset, nil
 }
 
-// SSTableReader provides random access to entries in an SSTable file.
-type SSTableReader struct {
-	file   *os.File
-	footer *Footer
-	index  *Index
+// SSTableImpl provides random access to entries in an SSTable file.
+type SSTableImpl struct {
+	file       *os.File
+	fileNo     common.FileNo
+	footer     *Footer
+	index      *Index
+	blockCache block_cache.BlockCache
 }
 
 // OpenSSTable opens an SSTable file and loads its footer and index into memory.
-func OpenSSTable(path string) (*SSTableReader, error) {
+func OpenSSTable(path string, fileNo common.FileNo, blockCache block_cache.BlockCache) (*SSTableImpl, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -217,26 +220,27 @@ func OpenSSTable(path string) (*SSTableReader, error) {
 		return nil, err
 	}
 
-	return &SSTableReader{
-		file:   f,
-		footer: footer,
-		index:  index,
+	return &SSTableImpl{
+		file:       f,
+		fileNo:     fileNo,
+		footer:     footer,
+		index:      index,
+		blockCache: blockCache,
 	}, nil
 }
 
 // Get looks up the entry for the given key.
 // Returns (nil, false) if the key is not found.
-func (r *SSTableReader) Get(key []byte) (*common.Entry, bool, error) {
+func (s *SSTableImpl) Get(key []byte) (*common.Entry, bool, error) {
 	// Find which block might contain this key
-	blockOffset, found := r.index.FindBlockOffset(key)
+	blockOffset, found := s.index.FindBlockOffset(key)
 	if !found {
 		return nil, false, nil
 	}
 
-	// Determine block size (read until next block or filter block)
-	var blockEnd uint64
+	// Find the block index in the index entries
 	blockIdx := -1
-	for i, entry := range r.index.Entries {
+	for i, entry := range s.index.Entries {
 		if entry.BlockOffset == blockOffset {
 			blockIdx = i
 			break
@@ -247,35 +251,56 @@ func (r *SSTableReader) Get(key []byte) (*common.Entry, bool, error) {
 		return nil, false, io.ErrUnexpectedEOF
 	}
 
-	// Block ends at the start of next block, or at filter offset if last block
-	if blockIdx+1 < len(r.index.Entries) {
-		blockEnd = r.index.Entries[blockIdx+1].BlockOffset
-	} else {
-		blockEnd = r.footer.FilterOffset
+	// Try to get block from cache
+	var blk block.Block
+	blockNo := common.BlockNo(blockIdx)
+
+	if s.blockCache != nil {
+		if cachedBlock, ok := s.blockCache.Get(s.fileNo, blockNo); ok {
+			blk = cachedBlock
+		}
 	}
 
-	blockSize := blockEnd - blockOffset
-	blockData := make([]byte, blockSize)
-	if _, err := r.file.ReadAt(blockData, int64(blockOffset)); err != nil {
-		return nil, false, err
+	// Cache miss or no cache - read from disk
+	if blk == nil {
+		// Determine block size (read until next block or filter block)
+		var blockEnd uint64
+		if blockIdx+1 < len(s.index.Entries) {
+			blockEnd = s.index.Entries[blockIdx+1].BlockOffset
+		} else {
+			blockEnd = s.footer.FilterOffset
+		}
+
+		blockSize := blockEnd - blockOffset
+		blockData := make([]byte, blockSize)
+		if _, err := s.file.ReadAt(blockData, int64(blockOffset)); err != nil {
+			return nil, false, err
+		}
+
+		// Parse block
+		var err error
+		blk, err = block.NewBlock(blockData)
+		if err != nil {
+			return nil, false, err
+		}
+
+		// Cache the parsed block if cache is available
+		if s.blockCache != nil {
+			s.blockCache.Put(s.fileNo, blockNo, blk)
+		}
 	}
 
-	// Parse block and search within it
-	blk, err := block.NewBlock(blockData)
-	if err != nil {
-		return nil, false, err
-	}
-
+	// Search within the block
 	entry, found := blk.Get(key)
 	return entry, found, nil
 }
 
 // Close releases the underlying file handle.
-func (r *SSTableReader) Close() error {
-	if r.file == nil {
+func (s *SSTableImpl) Close() error {
+	if s.file == nil {
 		return nil
 	}
-	err := r.file.Close()
-	r.file = nil
+	err := s.file.Close()
+	s.file = nil
 	return err
 }

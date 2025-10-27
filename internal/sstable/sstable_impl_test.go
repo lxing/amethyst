@@ -129,7 +129,7 @@ func TestSSTableReaderBasic(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	// Open SSTable for reading
-	reader, err := OpenSSTable(tmpFile)
+	reader, err := OpenSSTable(tmpFile, common.FileNo(1), nil)
 	require.NoError(t, err)
 	defer reader.Close()
 
@@ -191,7 +191,7 @@ func TestSSTableReaderMultipleBlocks(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	// Open SSTable for reading
-	reader, err := OpenSSTable(tmpFile)
+	reader, err := OpenSSTable(tmpFile, common.FileNo(1), nil)
 	require.NoError(t, err)
 	defer reader.Close()
 
@@ -229,7 +229,7 @@ func TestSSTableReaderTombstone(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	// Open SSTable for reading
-	reader, err := OpenSSTable(tmpFile)
+	reader, err := OpenSSTable(tmpFile, common.FileNo(1), nil)
 	require.NoError(t, err)
 	defer reader.Close()
 
