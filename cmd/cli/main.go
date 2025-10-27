@@ -49,7 +49,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("amethyst LSMT")
+	fmt.Println("adb - amethyst database")
 	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", walThreshold, maxSSTableLevel)
 	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | seed <x> | exit")
 
