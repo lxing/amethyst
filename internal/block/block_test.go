@@ -29,7 +29,8 @@ func testBlockWithEntries(t *testing.T, n int) {
 	// Encode all entries into a block
 	var buf bytes.Buffer
 	for _, e := range entries {
-		require.NoError(t, e.Encode(&buf))
+		_, err := e.Encode(&buf)
+		require.NoError(t, err)
 	}
 
 	// Parse the block
@@ -92,7 +93,8 @@ func TestBlockWithTombstone(t *testing.T) {
 
 	var buf bytes.Buffer
 	for _, e := range entries {
-		require.NoError(t, e.Encode(&buf))
+		_, err := e.Encode(&buf)
+		require.NoError(t, err)
 	}
 
 	block, err := NewBlock(buf.Bytes())

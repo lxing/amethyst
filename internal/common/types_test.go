@@ -54,8 +54,9 @@ func TestEntryEncodeDecode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encode
 			var buf bytes.Buffer
-			err := tt.entry.Encode(&buf)
+			n, err := tt.entry.Encode(&buf)
 			require.NoError(t, err)
+			require.Equal(t, n, buf.Len(), "returned byte count should match buffer size")
 
 			// Decode
 			decoded, err := DecodeEntry(&buf)

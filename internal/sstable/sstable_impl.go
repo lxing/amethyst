@@ -86,14 +86,11 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 		}
 
 		// Write entry to output
-		if err := entry.Encode(w); err != nil {
+		n, err := entry.Encode(w)
+		if err != nil {
 			return 0, err
 		}
-
-		// Calculate encoded size to track offset
-		// entryType(1) + seq(8) + keyLen(4) + valueLen(4) + key + value
-		entrySize := uint64(1 + 8 + 4 + 4 + len(entry.Key) + len(entry.Value))
-		offset += entrySize
+		offset += uint64(n)
 		blockEntryCount++
 
 		// Create index entry when block is full

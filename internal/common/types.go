@@ -55,7 +55,8 @@ type EntryIterator interface {
 // └──────────────────┘
 
 // Encode writes an entry to the given writer.
-func (e *Entry) Encode(w io.Writer) error {
+// Returns the number of bytes written.
+func (e *Entry) Encode(w io.Writer) (int, error) {
 	var buf [1 + 8 + 4 + 4]byte
 
 	buf[0] = byte(e.Type)
@@ -63,23 +64,29 @@ func (e *Entry) Encode(w io.Writer) error {
 	binary.LittleEndian.PutUint32(buf[9:], uint32(len(e.Key)))
 	binary.LittleEndian.PutUint32(buf[13:], uint32(len(e.Value)))
 
-	if _, err := w.Write(buf[:]); err != nil {
-		return err
+	n, err := w.Write(buf[:])
+	if err != nil {
+		return n, err
 	}
+	total := n
 
 	if len(e.Key) > 0 {
-		if _, err := w.Write(e.Key); err != nil {
-			return err
+		n, err := w.Write(e.Key)
+		total += n
+		if err != nil {
+			return total, err
 		}
 	}
 
 	if len(e.Value) > 0 {
-		if _, err := w.Write(e.Value); err != nil {
-			return err
+		n, err := w.Write(e.Value)
+		total += n
+		if err != nil {
+			return total, err
 		}
 	}
 
-	return nil
+	return total, nil
 }
 
 // DecodeEntry reads a single entry from the reader.
