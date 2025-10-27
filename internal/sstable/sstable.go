@@ -271,3 +271,24 @@ func (s *SSTableImpl) Close() error {
 	s.file = nil
 	return err
 }
+
+// Iterator returns an iterator that sequentially scans all entries in the SSTable.
+func (s *SSTableImpl) Iterator() common.EntryIterator {
+	// TODO: Implement sequential scan through all blocks
+	return &sstableIterator{}
+}
+
+// sstableIterator provides sequential access to all entries in an SSTable.
+type sstableIterator struct {
+	// TODO: Add fields for tracking current block, position, etc.
+}
+
+// Compile-time check that sstableIterator implements EntryIterator
+var _ common.EntryIterator = (*sstableIterator)(nil)
+
+// Next returns the next entry in the SSTable.
+func (it *sstableIterator) Next() (*common.Entry, error) {
+	// TODO: Implement sequential scan
+	// Should iterate through all blocks in order, reading entries sequentially
+	return nil, nil
+}
