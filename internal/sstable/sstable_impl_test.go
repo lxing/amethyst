@@ -40,8 +40,9 @@ func TestFooterEncodeDecode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encode
 			var buf bytes.Buffer
-			err := tt.footer.Encode(&buf)
+			n, err := tt.footer.Encode(&buf)
 			require.NoError(t, err)
+			require.Equal(t, FOOTER_SIZE, n)
 			require.Equal(t, FOOTER_SIZE, buf.Len())
 
 			// Decode

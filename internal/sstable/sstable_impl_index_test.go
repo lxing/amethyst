@@ -46,8 +46,9 @@ func TestIndexEntryEncodeDecode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encode
 			var buf bytes.Buffer
-			err := tt.entry.Encode(&buf)
+			n, err := tt.entry.Encode(&buf)
 			require.NoError(t, err)
+			require.Equal(t, n, buf.Len())
 
 			// Decode
 			decoded, err := DecodeIndexEntry(&buf)
@@ -175,8 +176,9 @@ func TestIndexWriteRead(t *testing.T) {
 
 	// Write
 	var buf bytes.Buffer
-	err := WriteIndex(&buf, original)
+	n, err := WriteIndex(&buf, original)
 	require.NoError(t, err)
+	require.Equal(t, n, buf.Len())
 
 	// Read
 	decoded, err := ReadIndex(&buf)
@@ -196,8 +198,9 @@ func TestIndexWriteRead_EmptyIndex(t *testing.T) {
 
 	// Write
 	var buf bytes.Buffer
-	err := WriteIndex(&buf, original)
+	n, err := WriteIndex(&buf, original)
 	require.NoError(t, err)
+	require.Equal(t, n, buf.Len())
 
 	// Read
 	decoded, err := ReadIndex(&buf)

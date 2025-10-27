@@ -38,14 +38,23 @@ type Footer struct {
 }
 
 // Encode writes the footer to the given writer.
-func (f *Footer) Encode(w io.Writer) error {
-	if _, err := common.WriteUint64(w, f.FilterOffset); err != nil {
-		return err
+// Returns the number of bytes written.
+func (f *Footer) Encode(w io.Writer) (int, error) {
+	total := 0
+
+	n, err := common.WriteUint64(w, f.FilterOffset)
+	total += n
+	if err != nil {
+		return total, err
 	}
-	if _, err := common.WriteUint64(w, f.IndexOffset); err != nil {
-		return err
+
+	n, err = common.WriteUint64(w, f.IndexOffset)
+	total += n
+	if err != nil {
+		return total, err
 	}
-	return nil
+
+	return total, nil
 }
 
 // DecodeFooter reads a footer from the reader.
@@ -126,26 +135,22 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	// Write index block
 	indexOffset := offset
 	index := &Index{Entries: indexEntries}
-	if err := WriteIndex(w, index); err != nil {
+	n, err := WriteIndex(w, index)
+	if err != nil {
 		return 0, err
 	}
-
-	// Calculate index size
-	indexSize := uint64(8) // numEntries
-	for i := range indexEntries {
-		indexSize += uint64(8 + 8 + len(indexEntries[i].Key))
-	}
-	offset += indexSize
+	offset += uint64(n)
 
 	// Write footer
 	footer := &Footer{
 		FilterOffset: filterOffset,
 		IndexOffset:  indexOffset,
 	}
-	if err := footer.Encode(w); err != nil {
+	n, err = footer.Encode(w)
+	if err != nil {
 		return 0, err
 	}
-	offset += FOOTER_SIZE
+	offset += uint64(n)
 
 	return offset, nil
 }

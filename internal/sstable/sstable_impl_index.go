@@ -38,19 +38,31 @@ type IndexEntry struct {
 }
 
 // Encode writes an index entry to the given writer.
-func (e *IndexEntry) Encode(w io.Writer) error {
-	if _, err := common.WriteUint64(w, e.BlockOffset); err != nil {
-		return err
+// Returns the number of bytes written.
+func (e *IndexEntry) Encode(w io.Writer) (int, error) {
+	total := 0
+
+	n, err := common.WriteUint64(w, e.BlockOffset)
+	total += n
+	if err != nil {
+		return total, err
 	}
-	if _, err := common.WriteUint64(w, uint64(len(e.Key))); err != nil {
-		return err
+
+	n, err = common.WriteUint64(w, uint64(len(e.Key)))
+	total += n
+	if err != nil {
+		return total, err
 	}
+
 	if len(e.Key) > 0 {
-		if _, err := common.WriteBytes(w, e.Key); err != nil {
-			return err
+		n, err = common.WriteBytes(w, e.Key)
+		total += n
+		if err != nil {
+			return total, err
 		}
 	}
-	return nil
+
+	return total, nil
 }
 
 // DecodeIndexEntry reads a single index entry from the reader.
@@ -109,16 +121,25 @@ func (idx *Index) FindBlockOffset(key []byte) (uint64, bool) {
 }
 
 // WriteIndex writes the entire index block to a writer.
-func WriteIndex(w io.Writer, idx *Index) error {
-	if _, err := common.WriteUint64(w, uint64(len(idx.Entries))); err != nil {
-		return err
+// Returns the number of bytes written.
+func WriteIndex(w io.Writer, idx *Index) (int, error) {
+	total := 0
+
+	n, err := common.WriteUint64(w, uint64(len(idx.Entries)))
+	total += n
+	if err != nil {
+		return total, err
 	}
+
 	for i := range idx.Entries {
-		if err := idx.Entries[i].Encode(w); err != nil {
-			return err
+		n, err = idx.Entries[i].Encode(w)
+		total += n
+		if err != nil {
+			return total, err
 		}
 	}
-	return nil
+
+	return total, nil
 }
 
 // ReadIndex reads an entire index block from a reader.
