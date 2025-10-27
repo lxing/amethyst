@@ -199,12 +199,12 @@ func OpenSSTable(
 }
 
 // Get looks up the entry for the given key.
-// Returns (nil, false) if the key is not found.
-func (s *SSTableImpl) Get(key []byte) (*common.Entry, bool, error) {
+// Returns ErrNotFound if the key does not exist.
+func (s *SSTableImpl) Get(key []byte) (*common.Entry, error) {
 	// Find which block might contain this key
 	blockOffset, found := s.index.FindBlockOffset(key)
 	if !found {
-		return nil, false, nil
+		return nil, ErrNotFound
 	}
 
 	// Find the block index in the index entries
@@ -217,7 +217,7 @@ func (s *SSTableImpl) Get(key []byte) (*common.Entry, bool, error) {
 	}
 
 	if blockIdx == -1 {
-		return nil, false, io.ErrUnexpectedEOF
+		return nil, io.ErrUnexpectedEOF
 	}
 
 	// Try to get block from cache
@@ -243,14 +243,14 @@ func (s *SSTableImpl) Get(key []byte) (*common.Entry, bool, error) {
 		blockSize := blockEnd - blockOffset
 		blockData := make([]byte, blockSize)
 		if _, err := s.file.ReadAt(blockData, int64(blockOffset)); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 
 		// Parse block
 		var err error
 		blk, err = block.NewBlock(blockData)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 
 		// Cache the parsed block if cache is available
@@ -261,7 +261,10 @@ func (s *SSTableImpl) Get(key []byte) (*common.Entry, bool, error) {
 
 	// Search within the block
 	entry, found := blk.Get(key)
-	return entry, found, nil
+	if !found {
+		return nil, ErrNotFound
+	}
+	return entry, nil
 }
 
 // Close releases the underlying file handle.

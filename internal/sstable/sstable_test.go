@@ -88,9 +88,8 @@ func TestSSTableReaderBasic(t *testing.T) {
 
 	// Test exact matches
 	for _, expected := range entries {
-		entry, found, err := reader.Get(expected.Key)
+		entry, err := reader.Get(expected.Key)
 		require.NoError(t, err)
-		require.True(t, found, "key %s should be found", expected.Key)
 		require.NotNil(t, entry)
 		require.Equal(t, expected.Type, entry.Type)
 		require.Equal(t, expected.Seq, entry.Seq)
@@ -111,9 +110,8 @@ func TestSSTableReaderBasic(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			entry, found, err := reader.Get([]byte(tc.key))
-			require.NoError(t, err)
-			require.False(t, found, "key %s should not be found", tc.key)
+			entry, err := reader.Get([]byte(tc.key))
+			require.ErrorIs(t, err, ErrNotFound, "key %s should not be found", tc.key)
 			require.Nil(t, entry)
 		})
 	}
@@ -155,9 +153,8 @@ func TestSSTableReaderMultipleBlocks(t *testing.T) {
 	testIndices := []int{0, block.BLOCK_SIZE / 2, block.BLOCK_SIZE, block.BLOCK_SIZE + 50, numEntries - 1}
 	for _, idx := range testIndices {
 		expected := entries[idx]
-		entry, found, err := reader.Get(expected.Key)
+		entry, err := reader.Get(expected.Key)
 		require.NoError(t, err, "reading entry at index %d", idx)
-		require.True(t, found, "entry at index %d should be found", idx)
 		require.NotNil(t, entry)
 		require.Equal(t, expected.Seq, entry.Seq)
 		require.Equal(t, expected.Key, entry.Key)
@@ -187,9 +184,8 @@ func TestSSTableReaderTombstone(t *testing.T) {
 	defer reader.Close()
 
 	// Verify tombstone is found
-	entry, found, err := reader.Get([]byte("deleted"))
+	entry, err := reader.Get([]byte("deleted"))
 	require.NoError(t, err)
-	require.True(t, found)
 	require.NotNil(t, entry)
 	require.Equal(t, common.EntryTypeDelete, entry.Type)
 	require.Equal(t, uint64(2), entry.Seq)
