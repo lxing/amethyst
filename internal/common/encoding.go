@@ -5,10 +5,14 @@ import (
 	"io"
 )
 
+// WriteUint8 writes a single byte to the writer.
+// Returns the number of bytes written (always 1) and any error encountered.
 func WriteUint8(w io.Writer, v uint8) (int, error) {
 	return w.Write([]byte{v})
 }
 
+// ReadUint8 reads a single byte from the reader.
+// Returns the byte value and any error encountered.
 func ReadUint8(r io.Reader) (uint8, error) {
 	var buf [1]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
@@ -17,12 +21,16 @@ func ReadUint8(r io.Reader) (uint8, error) {
 	return buf[0], nil
 }
 
+// WriteUint64 writes a 64-bit unsigned integer in little-endian format.
+// Returns the number of bytes written (always 8) and any error encountered.
 func WriteUint64(w io.Writer, v uint64) (int, error) {
 	var buf [8]byte
 	binary.LittleEndian.PutUint64(buf[:], v)
 	return w.Write(buf[:])
 }
 
+// ReadUint64 reads a 64-bit unsigned integer in little-endian format.
+// Returns the integer value and any error encountered.
 func ReadUint64(r io.Reader) (uint64, error) {
 	var buf [8]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
@@ -31,10 +39,15 @@ func ReadUint64(r io.Reader) (uint64, error) {
 	return binary.LittleEndian.Uint64(buf[:]), nil
 }
 
+// WriteBytes writes raw bytes to the writer without any length prefix.
+// Returns the number of bytes written and any error encountered.
 func WriteBytes(w io.Writer, data []byte) (int, error) {
 	return w.Write(data)
 }
 
+// ReadBytes reads exactly length bytes from the reader.
+// Returns nil for length 0, otherwise returns a byte slice of the requested length.
+// Returns any error encountered during reading.
 func ReadBytes(r io.Reader, length uint64) ([]byte, error) {
 	if length == 0 {
 		return nil, nil
