@@ -55,3 +55,91 @@ func TestWALRotation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("value5"), value)
 }
+
+func TestSSTableReadAfterFlush(t *testing.T) {
+	// Clean up
+	defer os.RemoveAll("wal")
+	defer os.RemoveAll("sstable")
+
+	// Create DB with low WAL threshold to trigger flush
+	d, err := db.Open(db.WithWALThreshold(3))
+	require.NoError(t, err)
+
+	// Write 3 entries (reaches threshold)
+	for i := 0; i < 3; i++ {
+		key := []byte(fmt.Sprintf("old%d", i))
+		value := []byte(fmt.Sprintf("value%d", i))
+		err := d.Put(key, value)
+		require.NoError(t, err)
+	}
+
+	// Write 4th entry - triggers flush to SSTable
+	err = d.Put([]byte("trigger"), []byte("flush"))
+	require.NoError(t, err)
+
+	// Verify SSTable file was created
+	_, err = os.Stat("sstable/0/0.sst")
+	require.NoError(t, err, "Flush should create sstable/0/0.sst")
+
+	// Write new entry to new memtable
+	err = d.Put([]byte("new"), []byte("value"))
+	require.NoError(t, err)
+
+	// Read from new memtable (should work)
+	value, err := d.Get([]byte("new"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("value"), value)
+
+	// Read from flushed SSTable (old entries)
+	for i := 0; i < 3; i++ {
+		key := []byte(fmt.Sprintf("old%d", i))
+		value, err := d.Get(key)
+		require.NoError(t, err, "Should read old%d from SSTable", i)
+		require.Equal(t, []byte(fmt.Sprintf("value%d", i)), value)
+	}
+
+	// Read trigger key from SSTable
+	value, err = d.Get([]byte("trigger"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("flush"), value)
+
+	// Verify non-existent key returns ErrNotFound
+	_, err = d.Get([]byte("nonexistent"))
+	require.ErrorIs(t, err, db.ErrNotFound)
+}
+
+func TestSSTableWithDeletes(t *testing.T) {
+	// Clean up
+	defer os.RemoveAll("wal")
+	defer os.RemoveAll("sstable")
+
+	// Create DB
+	d, err := db.Open(db.WithWALThreshold(5))
+	require.NoError(t, err)
+
+	// Write and delete in same memtable
+	err = d.Put([]byte("key1"), []byte("value1"))
+	require.NoError(t, err)
+
+	err = d.Delete([]byte("key1"))
+	require.NoError(t, err)
+
+	// Should return ErrNotFound
+	_, err = d.Get([]byte("key1"))
+	require.ErrorIs(t, err, db.ErrNotFound)
+
+	// Write enough to trigger flush
+	for i := 0; i < 5; i++ {
+		err = d.Put([]byte(fmt.Sprintf("k%d", i)), []byte(fmt.Sprintf("v%d", i)))
+		require.NoError(t, err)
+	}
+
+	// Deleted key should still be not found after flush
+	_, err = d.Get([]byte("key1"))
+	require.ErrorIs(t, err, db.ErrNotFound)
+
+	// Other keys should be readable
+	value, err := d.Get([]byte("k0"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("v0"), value)
+}
