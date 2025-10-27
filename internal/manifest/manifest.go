@@ -1,7 +1,6 @@
 package manifest
 
 import (
-	"fmt"
 	"sync"
 
 	"amethyst/internal/block_cache"
@@ -139,7 +138,6 @@ func (m *Manifest) deepCopy(v *Version) *Version {
 }
 
 // GetTable returns the SSTable for the given file number, opening it if not cached.
-// The level parameter is currently unused but will be needed when we support multiple levels.
 func (m *Manifest) GetTable(fileNo common.FileNo, level int) (sstable.SSTable, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -150,8 +148,7 @@ func (m *Manifest) GetTable(fileNo common.FileNo, level int) (sstable.SSTable, e
 	}
 
 	// Open the SSTable file
-	// TODO: Support multiple levels, for now hardcoded to L0
-	path := fmt.Sprintf("sstable/0/%d.sst", fileNo)
+	path := common.SSTablePath(level, fileNo)
 	table, err := sstable.OpenSSTable(path, fileNo, m.blockCache)
 	if err != nil {
 		return nil, err

@@ -68,7 +68,7 @@ func Open(optFns ...Option) (*DB, error) {
 	m := manifest.NewManifest(opts.maxSSTableLevel + 1)
 
 	// Create initial WAL
-	walPath := fmt.Sprintf("wal/%d.log", m.Current().NextWALNumber)
+	walPath := common.WALPath(m.Current().NextWALNumber)
 	log, err := wal.NewWAL(walPath)
 	if err != nil {
 		return nil, err
@@ -204,7 +204,7 @@ func (d *DB) flushMemtable() error {
 	d.wal.Close()
 
 	// 2. Create new WAL file
-	newWALPath := fmt.Sprintf("wal/%d.log", newWALNum)
+	newWALPath := common.WALPath(newWALNum)
 	newWAL, err := wal.NewWAL(newWALPath)
 	if err != nil {
 		return err
@@ -233,7 +233,7 @@ func (d *DB) writeSSTable() error {
 	fileNo := v.NextSSTableNumber
 
 	// Create SSTable file in L0
-	path := fmt.Sprintf("sstable/0/%d.sst", fileNo)
+	path := common.SSTablePath(0, fileNo)
 	f, err := os.Create(path)
 	if err != nil {
 		return err
