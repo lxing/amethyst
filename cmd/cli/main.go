@@ -53,7 +53,14 @@ func main() {
 	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", walThreshold, maxSSTableLevel)
 	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | seed <x> | exit")
 
-	seedIndex := 0 // Global seed index counter
+	// Load seed index from DB
+	seedIndex := 0
+	if val, err := engine.Get([]byte("__cli_seed_index__")); err == nil {
+		if idx, err := strconv.Atoi(string(val)); err == nil {
+			seedIndex = idx
+			fmt.Printf("resumed seed index from %d\n", seedIndex)
+		}
+	}
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
@@ -125,6 +132,12 @@ func main() {
 				}
 			}
 			seedIndex += x
+
+			// Persist seed index to DB
+			if err := engine.Put([]byte("__cli_seed_index__"), []byte(fmt.Sprint(seedIndex))); err != nil {
+				fmt.Printf("warning: failed to persist seed index: %v\n", err)
+			}
+
 			fmt.Printf("seeded %d entries (26 * %d, index %d-%d)\n", count, x, startIndex, seedIndex-1)
 		case "exit", "quit":
 			return
