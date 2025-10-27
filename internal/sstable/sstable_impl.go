@@ -8,6 +8,7 @@ import (
 	"amethyst/internal/block"
 	"amethyst/internal/block_cache"
 	"amethyst/internal/common"
+	"amethyst/internal/filter"
 )
 
 // SSTable File Layout:
@@ -115,13 +116,13 @@ type SSTableImpl struct {
 	file       *os.File
 	fileNo     common.FileNo
 	footer     *Footer
-	filter     *Filter
+	filter     filter.Filter
 	index      *Index
 	blockCache block_cache.BlockCache
 }
 
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
-func loadSSTableMetadata(f *os.File) (*Footer, *Filter, *Index, error) {
+func loadSSTableMetadata(f *os.File) (*Footer, filter.Filter, *Index, error) {
 	// Get file size
 	stat, err := f.Stat()
 	if err != nil {
@@ -147,7 +148,7 @@ func loadSSTableMetadata(f *os.File) (*Footer, *Filter, *Index, error) {
 
 	// TODO: Read filter block from footer.FilterOffset to footer.IndexOffset
 	// For now, filter is unimplemented (just a placeholder offset in footer)
-	var filter *Filter = nil
+	var bloomFilter filter.Filter = nil
 
 	// Read index block
 	indexSize := footerOffset - int64(footer.IndexOffset)
@@ -165,7 +166,7 @@ func loadSSTableMetadata(f *os.File) (*Footer, *Filter, *Index, error) {
 		return nil, nil, nil, err
 	}
 
-	return footer, filter, index, nil
+	return footer, bloomFilter, index, nil
 }
 
 // OpenSSTable opens an SSTable file and loads its footer and index into memory.
