@@ -10,6 +10,11 @@ type lruCache struct{}
 
 var _ BlockCache = (*lruCache)(nil)
 
+// NewBlockCache creates a new block cache.
+func NewBlockCache() BlockCache {
+	return &lruCache{}
+}
+
 func (c *lruCache) Get(fileNo common.FileNo, blockNo common.BlockNo) (block.Block, bool) {
 	return nil, false
 }
