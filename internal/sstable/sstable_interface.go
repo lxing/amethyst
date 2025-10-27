@@ -17,6 +17,9 @@ type SSTable interface {
 	// Iterator returns an iterator over all entries in the table.
 	Iterator() common.EntryIterator
 
+	// GetIndex returns the index entries (first key of each block).
+	GetIndex() []IndexEntry
+
 	// Close releases resources associated with this SSTable.
 	Close() error
 }

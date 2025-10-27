@@ -267,6 +267,17 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 	return entry, nil
 }
 
+// GetIndex returns the index entries (first key of each block).
+func (s *sstableImpl) GetIndex() []IndexEntry {
+	if s.index == nil {
+		return nil
+	}
+	// Return a copy to avoid external mutation
+	entries := make([]IndexEntry, len(s.index.Entries))
+	copy(entries, s.index.Entries)
+	return entries
+}
+
 // Close releases the underlying file handle.
 func (s *sstableImpl) Close() error {
 	if s.file == nil {
