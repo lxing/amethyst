@@ -1,3 +1,8 @@
 # Ignore Go module metadata; lessons use workspace-local setups
 go.mod
 .gocache/
+
+# Ignore binaries and runtime data
+bin/
+wal/
+sstable/
