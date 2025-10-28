@@ -112,3 +112,15 @@ func dumpFile(path string) {
 		fmt.Printf("unknown file type: %s (expected .log or .sst)\n", ext)
 	}
 }
+
+func dump(parts []string, engine *db.DB) {
+	if len(parts) != 2 {
+		fmt.Println("usage: dump <memtable|file.log|file.sst>")
+		return
+	}
+	if parts[1] == "memtable" {
+		dumpMemtable(engine)
+	} else {
+		dumpFile(parts[1])
+	}
+}

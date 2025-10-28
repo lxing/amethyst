@@ -289,3 +289,17 @@ func inspectAll(engine *db.DB) {
 		renderBoxRow(fmt.Sprintf("L%d", level), boxes, boxWidth)
 	}
 }
+
+func inspect(parts []string, engine *db.DB) {
+	if len(parts) != 2 {
+		fmt.Println("usage: inspect <all|memtable|file.log|file.sst>")
+		return
+	}
+	if parts[1] == "all" {
+		inspectAll(engine)
+	} else if parts[1] == "memtable" {
+		inspectMemtable(engine)
+	} else {
+		inspectFile(parts[1])
+	}
+}
