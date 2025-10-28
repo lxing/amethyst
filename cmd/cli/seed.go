@@ -3,11 +3,22 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"time"
 
 	"amethyst/internal/common"
 	"amethyst/internal/db"
 )
+
+func loadSeedIndex(engine *db.DB) int {
+	if val, err := engine.Get([]byte("__cli_seed_index__")); err == nil {
+		if idx, err := strconv.Atoi(string(val)); err == nil {
+			fmt.Printf("resumed seed index from %d\n", idx)
+			return idx
+		}
+	}
+	return 0
+}
 
 var kvPairs = [][2]string{
 	{"apple", "artichoke"},

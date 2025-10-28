@@ -71,6 +71,11 @@ func (m *mapMemtableImpl) Iterator() common.EntryIterator {
 	return &memtableIterator{entries: entries}
 }
 
+// Len returns the number of entries in the memtable.
+func (m *mapMemtableImpl) Len() int {
+	return len(m.items)
+}
+
 type memtableIterator struct {
 	entries []*common.Entry
 	index   int

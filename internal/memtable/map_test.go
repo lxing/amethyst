@@ -12,9 +12,13 @@ import (
 func TestPutAndGet(t *testing.T) {
 	mt := memtable.NewMapMemtable()
 
+	require.Equal(t, 0, mt.Len())
+
 	key := []byte("alpha")
 	value := []byte("value")
 	mt.Put(key, value)
+
+	require.Equal(t, 1, mt.Len())
 
 	entry, ok := mt.Get([]byte("alpha"))
 	require.True(t, ok)

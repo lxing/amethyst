@@ -22,7 +22,7 @@ func printHelp() {
 	fmt.Println("  get     <key>          - read a value")
 	fmt.Println("  delete  <key>          - delete a key")
 	fmt.Println("  seed    <x>            - load 26*x fruit/vegetable pairs")
-	fmt.Println("  inspect <file>         - inspect .log or .sst file")
+	fmt.Println("  inspect <memtable|file.log|file.sst> - inspect memtable or file")
 	fmt.Println("  clear                  - delete all .log and .sst files")
 	fmt.Println("  help                   - show this help")
 	fmt.Println("  exit, quit             - exit the program")
@@ -88,12 +88,7 @@ func main() {
 	}
 
 	// Load seed index from DB
-	if val, err := ctx.engine.Get([]byte("__cli_seed_index__")); err == nil {
-		if idx, err := strconv.Atoi(string(val)); err == nil {
-			ctx.seedIndex = idx
-			fmt.Printf("resumed seed index from %d\n", ctx.seedIndex)
-		}
-	}
+	ctx.seedIndex = loadSeedIndex(ctx.engine)
 
 	for {
 		input, err := line.Prompt("> ")
@@ -163,10 +158,14 @@ func main() {
 			runSeed(ctx.engine, x, &ctx.seedIndex)
 		case "inspect":
 			if len(parts) != 2 {
-				fmt.Println("usage: inspect <file.log|file.sst>")
+				fmt.Println("usage: inspect <memtable|file.log|file.sst>")
 				continue
 			}
-			inspectFile(parts[1])
+			if parts[1] == "memtable" {
+				inspectMemtable(ctx.engine)
+			} else {
+				inspectFile(parts[1])
+			}
 		case "clear":
 			if err := clearDatabase(ctx); err != nil {
 				fmt.Printf("clear error: %v\n", err)

@@ -8,4 +8,5 @@ type Memtable interface {
 	Delete(key []byte)
 	Get(key []byte) (*common.Entry, bool)
 	Iterator() common.EntryIterator
+	Len() int
 }

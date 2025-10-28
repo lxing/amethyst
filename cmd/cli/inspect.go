@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"amethyst/internal/common"
+	"amethyst/internal/db"
 	"amethyst/internal/sstable"
 	"amethyst/internal/wal"
 )
@@ -180,5 +181,14 @@ func inspectSSTable(path string) {
 	for i, entry := range indexEntries {
 		fmt.Printf("Block %d: offset=%d key=%q\n", i, entry.BlockOffset, string(entry.Key))
 	}
+	fmt.Println()
+}
+
+func inspectMemtable(engine *db.DB) {
+	fmt.Println("Inspecting Memtable")
+	fmt.Println()
+
+	count := engine.Memtable().Len()
+	fmt.Printf("Total entries: %d\n", count)
 	fmt.Println()
 }
