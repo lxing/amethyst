@@ -3,6 +3,7 @@ package wal
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"os"
 
 	"amethyst/internal/common"
@@ -19,7 +20,7 @@ var _ WAL = (*walImpl)(nil)
 func OpenWAL(path string) (*walImpl, error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open %s: %w", path, err)
 	}
 	return &walImpl{file: f}, nil
 }
@@ -28,7 +29,7 @@ func OpenWAL(path string) (*walImpl, error) {
 func CreateWAL(path string) (*walImpl, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create %s: %w", path, err)
 	}
 	return &walImpl{file: f}, nil
 }

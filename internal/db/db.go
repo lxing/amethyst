@@ -339,7 +339,7 @@ func (d *DB) writeSSTable() error {
 	path := common.SSTablePath(0, fileNo)
 	f, err := os.Create(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create %s: %w", path, err)
 	}
 
 	// Get sorted entries from memtable

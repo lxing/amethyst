@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -202,7 +203,7 @@ func (m *Manifest) Flush() error {
 	tmpPath := "MANIFEST.tmp"
 	f, err := os.Create(tmpPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create %s: %w", tmpPath, err)
 	}
 
 	if err := WriteManifest(f, v); err != nil {

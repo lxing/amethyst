@@ -3,6 +3,7 @@ package sstable
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 
@@ -206,13 +207,13 @@ func OpenSSTable(
 ) (*sstableImpl, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open %s: %w", path, err)
 	}
 
 	footer, filter, index, err := loadSSTableMetadata(f)
 	if err != nil {
 		f.Close()
-		return nil, err
+		return nil, fmt.Errorf("failed to load metadata from %s: %w", path, err)
 	}
 
 	return &sstableImpl{
