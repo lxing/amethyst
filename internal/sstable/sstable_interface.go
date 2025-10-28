@@ -17,14 +17,12 @@ type SSTable interface {
 	// Iterator returns an iterator over all entries in the table.
 	Iterator() common.EntryIterator
 
-	// GetIndex returns the index entries (first key of each block).
-	// TODO: this should return the index type, not indexentries
-	GetIndex() []IndexEntry
+	// GetIndex returns the index structure.
+	GetIndex() *Index
 
-	// GetEntryCount returns the total number of entries in the SSTable.
-	// This is calculated as: (numBlocks - 1) * BLOCK_SIZE + lastBlockEntryCount
-	// TODO: rename to Len(), and embed len in the footer for fast loookup.
-	GetEntryCount() (int, error)
+	// Len returns the total number of entries in the SSTable.
+	// This value is cached in the footer for fast lookup.
+	Len() int
 
 	// Close releases resources associated with this SSTable.
 	Close() error

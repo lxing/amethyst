@@ -9,13 +9,14 @@ import (
 const (
 	// FOOTER_SIZE is the size of the footer in bytes.
 	// footerOffset = len(sstable) - FOOTER_SIZE
-	FOOTER_SIZE = 16
+	FOOTER_SIZE = 24
 )
 
-// Footer is the last 16 bytes of the SSTable file.
+// Footer is the last 24 bytes of the SSTable file.
 type Footer struct {
 	FilterOffset uint64 // Offset where filter block starts (8 bytes)
 	IndexOffset  uint64 // Offset where index block starts (8 bytes)
+	EntryCount   uint64 // Total number of entries in the SSTable (8 bytes)
 }
 
 // WriteFooter writes the footer to the given writer.
@@ -35,6 +36,12 @@ func WriteFooter(w io.Writer, f *Footer) (int, error) {
 		return total, err
 	}
 
+	n, err = common.WriteUint64(w, f.EntryCount)
+	total += n
+	if err != nil {
+		return total, err
+	}
+
 	return total, nil
 }
 
@@ -48,8 +55,13 @@ func ReadFooter(r io.Reader) (*Footer, error) {
 	if err != nil {
 		return nil, err
 	}
+	entryCount, err := common.ReadUint64(r)
+	if err != nil {
+		return nil, err
+	}
 	return &Footer{
 		FilterOffset: filterOffset,
 		IndexOffset:  indexOffset,
+		EntryCount:   entryCount,
 	}, nil
 }

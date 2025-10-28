@@ -173,20 +173,16 @@ func inspectSSTable(path string) {
 	}
 	defer table.Close()
 
-	indexEntries := table.GetIndex()
-	entryCount, err := table.GetEntryCount()
-	if err != nil {
-		fmt.Printf("failed to get entry count: %v\n", err)
-		return
-	}
+	index := table.GetIndex()
+	entryCount := table.Len()
 
-	fmt.Printf("Total blocks: %d\n", len(indexEntries))
+	fmt.Printf("Total blocks: %d\n", len(index.Entries))
 	fmt.Printf("Total entries: %d\n", entryCount)
 	fmt.Println()
 	fmt.Println("Index entries (first key of each block):")
 	fmt.Println()
 
-	for i, entry := range indexEntries {
+	for i, entry := range index.Entries {
 		fmt.Printf("Block %d: offset=%d key=%q\n", i, entry.BlockOffset, string(entry.Key))
 	}
 	fmt.Println()

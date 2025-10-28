@@ -35,6 +35,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	var offset uint64
 	var indexEntries []IndexEntry
 	var blockEntryCount int
+	var totalEntryCount uint64
 	var blockStartOffset uint64
 	var firstBlockKey []byte
 
@@ -62,6 +63,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 		}
 		offset += uint64(n)
 		blockEntryCount++
+		totalEntryCount++
 
 		// Create index entry when block is full
 		if blockEntryCount >= block.BLOCK_SIZE {
@@ -101,6 +103,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	footer := &Footer{
 		FilterOffset: filterOffset,
 		IndexOffset:  indexOffset,
+		EntryCount:   totalEntryCount,
 	}
 	n, err = WriteFooter(w, footer)
 	if err != nil {
@@ -268,50 +271,14 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 }
 
 // GetIndex returns the index entries (first key of each block).
-func (s *sstableImpl) GetIndex() []IndexEntry {
-	if s.index == nil {
-		return nil
-	}
-	// Return a copy to avoid external mutation
-	entries := make([]IndexEntry, len(s.index.Entries))
-	copy(entries, s.index.Entries)
-	return entries
+func (s *sstableImpl) GetIndex() *Index {
+	return s.index
 }
 
-// GetEntryCount returns the total number of entries in the SSTable.
-// Calculated as: (numBlocks - 1) * BLOCK_SIZE + lastBlockEntryCount
-func (s *sstableImpl) GetEntryCount() (int, error) {
-	if s.index == nil || len(s.index.Entries) == 0 {
-		return 0, nil
-	}
-
-	numBlocks := len(s.index.Entries)
-
-	// Read the last block to count its entries
-	lastBlockIdx := numBlocks - 1
-	lastBlockOffset := s.index.Entries[lastBlockIdx].BlockOffset
-	blockEnd := s.footer.FilterOffset
-	blockSize := blockEnd - lastBlockOffset
-	blockData := make([]byte, blockSize)
-	if _, err := s.file.ReadAt(blockData, int64(lastBlockOffset)); err != nil {
-		return 0, err
-	}
-
-	blk, err := block.NewBlock(blockData)
-	if err != nil {
-		return 0, err
-	}
-
-	lastBlockCount := blk.Len()
-
-	// If only one block, return its count
-	if numBlocks == 1 {
-		return lastBlockCount, nil
-	}
-
-	// Multiple blocks: all but last have exactly BLOCK_SIZE entries
-	totalCount := (numBlocks-1)*block.BLOCK_SIZE + lastBlockCount
-	return totalCount, nil
+// Len returns the total number of entries in the SSTable.
+// This value is cached in the footer for fast lookup.
+func (s *sstableImpl) Len() int {
+	return int(s.footer.EntryCount)
 }
 
 // Close releases the underlying file handle.
