@@ -20,6 +20,10 @@ type SSTable interface {
 	// GetIndex returns the index entries (first key of each block).
 	GetIndex() []IndexEntry
 
+	// GetEntryCount returns the total number of entries in the SSTable.
+	// This is calculated as: (numBlocks - 1) * BLOCK_SIZE + lastBlockEntryCount
+	GetEntryCount() (int, error)
+
 	// Close releases resources associated with this SSTable.
 	Close() error
 }

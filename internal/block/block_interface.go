@@ -10,4 +10,7 @@ const BLOCK_SIZE = 64
 type Block interface {
 	// Get returns the entry for the given key. Returns (entry, true) if found, (nil, false) if not found.
 	Get(key []byte) (*common.Entry, bool)
+
+	// Len returns the number of entries in this block.
+	Len() int
 }

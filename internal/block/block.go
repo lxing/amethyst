@@ -48,3 +48,8 @@ func (b *blockImpl) Get(key []byte) (*common.Entry, bool) {
 	}
 	return nil, false
 }
+
+// Len returns the number of entries in this block.
+func (b *blockImpl) Len() int {
+	return len(b.entries)
+}

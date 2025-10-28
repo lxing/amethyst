@@ -165,8 +165,14 @@ func inspectSSTable(path string) {
 	defer table.Close()
 
 	indexEntries := table.GetIndex()
+	entryCount, err := table.GetEntryCount()
+	if err != nil {
+		fmt.Printf("failed to get entry count: %v\n", err)
+		return
+	}
 
 	fmt.Printf("Total blocks: %d\n", len(indexEntries))
+	fmt.Printf("Total entries: %d\n", entryCount)
 	fmt.Println()
 	fmt.Println("Index entries (first key of each block):")
 	fmt.Println()

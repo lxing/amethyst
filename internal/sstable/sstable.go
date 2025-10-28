@@ -278,6 +278,42 @@ func (s *sstableImpl) GetIndex() []IndexEntry {
 	return entries
 }
 
+// GetEntryCount returns the total number of entries in the SSTable.
+// Calculated as: (numBlocks - 1) * BLOCK_SIZE + lastBlockEntryCount
+func (s *sstableImpl) GetEntryCount() (int, error) {
+	if s.index == nil || len(s.index.Entries) == 0 {
+		return 0, nil
+	}
+
+	numBlocks := len(s.index.Entries)
+
+	// Read the last block to count its entries
+	lastBlockIdx := numBlocks - 1
+	lastBlockOffset := s.index.Entries[lastBlockIdx].BlockOffset
+	blockEnd := s.footer.FilterOffset
+	blockSize := blockEnd - lastBlockOffset
+	blockData := make([]byte, blockSize)
+	if _, err := s.file.ReadAt(blockData, int64(lastBlockOffset)); err != nil {
+		return 0, err
+	}
+
+	blk, err := block.NewBlock(blockData)
+	if err != nil {
+		return 0, err
+	}
+
+	lastBlockCount := blk.Len()
+
+	// If only one block, return its count
+	if numBlocks == 1 {
+		return lastBlockCount, nil
+	}
+
+	// Multiple blocks: all but last have exactly BLOCK_SIZE entries
+	totalCount := (numBlocks-1)*block.BLOCK_SIZE + lastBlockCount
+	return totalCount, nil
+}
+
 // Close releases the underlying file handle.
 func (s *sstableImpl) Close() error {
 	if s.file == nil {
