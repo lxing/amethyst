@@ -130,26 +130,7 @@ func inspectWAL(path string) {
 	}
 	defer w.Close()
 
-	iter, err := w.Iterator()
-	if err != nil {
-		fmt.Printf("failed to create iterator: %v\n", err)
-		return
-	}
-
-	count := 0
-	for {
-		entry, err := iter.Next()
-		if err != nil {
-			fmt.Printf("error reading entry: %v\n", err)
-			return
-		}
-		if entry == nil {
-			break
-		}
-		count++
-	}
-
-	fmt.Printf("Total entries: %d\n", count)
+	fmt.Printf("Total entries: %d\n", w.Len())
 	fmt.Println()
 }
 

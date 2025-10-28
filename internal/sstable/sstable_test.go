@@ -225,22 +225,5 @@ func TestSSTableIterator(t *testing.T) {
 
 	// Iterate and verify all entries
 	resultIter := reader.Iterator()
-	count := 0
-	for {
-		entry, err := resultIter.Next()
-		require.NoError(t, err)
-		if entry == nil {
-			break
-		}
-
-		require.Less(t, count, numEntries, "iterator returned more entries than expected")
-		expected := entries[count]
-		require.Equal(t, expected.Type, entry.Type)
-		require.Equal(t, expected.Seq, entry.Seq)
-		require.Equal(t, expected.Key, entry.Key)
-		require.Equal(t, expected.Value, entry.Value)
-		count++
-	}
-
-	require.Equal(t, numEntries, count, "iterator should return all entries")
+	common.RequireMatchesIterator(t, resultIter, entries)
 }

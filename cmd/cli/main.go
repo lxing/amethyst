@@ -74,7 +74,7 @@ func main() {
 	line := liner.NewLiner()
 	defer line.Close()
 
-	line.SetCtrlCAborts(true)
+	line.SetCtrlCAborts(false)
 	line.SetCompleter(fileCompleter)
 
 	// Load history from file
@@ -96,7 +96,7 @@ func main() {
 	for {
 		input, err := line.Prompt("> ")
 		if err != nil {
-			if err == liner.ErrPromptAborted || err == io.EOF {
+			if err == io.EOF {
 				fmt.Println()
 				break
 			}
