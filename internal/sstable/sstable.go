@@ -142,6 +142,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 // sstableImpl provides random access to entries in an SSTable file.
 type sstableImpl struct {
 	file       *os.File
+	path       string // File path (stored for error messages)
 	fileNo     common.FileNo
 	footer     *Footer
 	filter     filter.Filter
@@ -218,6 +219,7 @@ func OpenSSTable(
 
 	return &sstableImpl{
 		file:       f,
+		path:       path,
 		fileNo:     fileNo,
 		footer:     footer,
 		filter:     filter,
@@ -271,14 +273,14 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 		blockSize := blockEnd - blockOffset
 		blockData := make([]byte, blockSize)
 		if _, err := s.file.ReadAt(blockData, int64(blockOffset)); err != nil {
-			return nil, fmt.Errorf("failed to read block %d at offset %d from %s: %w", blockIdx, blockOffset, s.file.Name(), err)
+			return nil, fmt.Errorf("failed to read block %d at offset %d from %s: %w", blockIdx, blockOffset, s.path, err)
 		}
 
 		// Parse block
 		var err error
 		blk, err = block.NewBlock(blockData)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse block %d from %s: %w", blockIdx, s.file.Name(), err)
+			return nil, fmt.Errorf("failed to parse block %d from %s: %w", blockIdx, s.path, err)
 		}
 
 		// Cache the parsed block if cache is available
@@ -319,7 +321,7 @@ func (s *sstableImpl) Close() error {
 // Iterator returns an iterator that sequentially scans all entries in the SSTable.
 func (s *sstableImpl) Iterator() common.EntryIterator {
 	// Open a separate file handle for iteration
-	f, err := os.Open(s.file.Name())
+	f, err := os.Open(s.path)
 	if err != nil {
 		// Return an iterator that immediately fails
 		return &sstableIterator{err: err}
