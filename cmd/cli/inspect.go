@@ -291,10 +291,17 @@ func inspectAll(engine *db.DB) {
 }
 
 func inspect(parts []string, engine *db.DB) {
-	if len(parts) != 2 {
-		fmt.Println("usage: inspect <all|memtable|file.log|file.sst>")
+	if len(parts) == 1 {
+		// Default: inspect all
+		inspectAll(engine)
 		return
 	}
+
+	if len(parts) != 2 {
+		fmt.Println("usage: inspect [all|memtable|file.log|file.sst]")
+		return
+	}
+
 	if parts[1] == "all" {
 		inspectAll(engine)
 	} else if parts[1] == "memtable" {
