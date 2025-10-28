@@ -12,6 +12,10 @@ import (
 )
 
 func dumpIterator(iter common.EntryIterator) {
+	// Print header
+	fmt.Printf("%-6s %-20s %10s  %s\n", "OP", "KEY", "SEQ", "VALUE")
+	fmt.Println()
+
 	count := 0
 	for {
 		entry, err := iter.Next()
@@ -29,10 +33,17 @@ func dumpIterator(iter common.EntryIterator) {
 			typeStr = "DEL"
 		}
 
+		// Truncate key if longer than 20 chars
+		key := string(entry.Key)
+		if len(key) > 20 {
+			key = key[:20]
+		}
+
+		// Format with fixed-width columns
 		if entry.Type == common.EntryTypePut {
-			fmt.Printf("%s key=%q value=%q seq=%d\n", typeStr, string(entry.Key), string(entry.Value), entry.Seq)
+			fmt.Printf("%-6s %-20s %10d  %s\n", typeStr, key, entry.Seq, string(entry.Value))
 		} else {
-			fmt.Printf("%s key=%q seq=%d\n", typeStr, string(entry.Key), entry.Seq)
+			fmt.Printf("%-6s %-20s %10d\n", typeStr, key, entry.Seq)
 		}
 	}
 
