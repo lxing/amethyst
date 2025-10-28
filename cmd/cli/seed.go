@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 
 	"amethyst/internal/db"
 )
@@ -38,7 +39,15 @@ var kvPairs = [][2]string{
 func runSeed(engine *db.DB, x int, seedIndex *int) {
 	count := 0
 	startIndex := *seedIndex
-	for _, pair := range kvPairs {
+
+	// Randomize the order of fruits for more realistic workload
+	shuffled := make([][2]string, len(kvPairs))
+	copy(shuffled, kvPairs)
+	rand.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
+
+	for _, pair := range shuffled {
 		for i := 0; i < x; i++ {
 			key := fmt.Sprintf("%s%d", pair[0], *seedIndex+i)
 			value := fmt.Sprintf("%s%d", pair[1], *seedIndex+i)
