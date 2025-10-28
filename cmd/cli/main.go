@@ -12,10 +12,10 @@ import (
 
 func printHelp() {
 	fmt.Println("commands:")
-	fmt.Println("  put <key> <value>  - write a key-value pair")
-	fmt.Println("  get <key>          - read a value")
-	fmt.Println("  delete <key>       - delete a key")
-	fmt.Println("  seed <x>           - load 26*x fruit/vegetable pairs")
+	fmt.Println("  put     <key> <value>  - write a key-value pair")
+	fmt.Println("  get     <key>          - read a value")
+	fmt.Println("  delete  <key>       - delete a key")
+	fmt.Println("  seed    <x>           - load 26*x fruit/vegetable pairs")
 	fmt.Println("  inspect <file>     - inspect .log or .sst file")
 	fmt.Println("  help               - show this help")
 	fmt.Println("  exit, quit         - exit the program")
