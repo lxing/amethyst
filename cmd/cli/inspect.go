@@ -282,8 +282,6 @@ func inspectAll(engine *db.DB) {
 				firstKey,
 				lastKey,
 			})
-
-			table.Close()
 		}
 
 		renderBoxRow(fmt.Sprintf("L%d", level), boxes, boxWidth)
