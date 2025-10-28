@@ -39,9 +39,17 @@ func TestApplyCompactionEdit(t *testing.T) {
 
 	// Add tables to L0 and L1
 	edit1 := &CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{
-			0: {1: {}, 2: {}, 3: {}, 4: {}},
-			1: {10: {}, 11: {}},
+		AddSSTables: map[int][]FileMetadata{
+			0: {
+				{FileNo: 1},
+				{FileNo: 2},
+				{FileNo: 3},
+				{FileNo: 4},
+			},
+			1: {
+				{FileNo: 10},
+				{FileNo: 11},
+			},
 		},
 		DeleteSSTables: map[int]map[common.FileNo]struct{}{},
 	}
@@ -54,7 +62,7 @@ func TestApplyCompactionEdit(t *testing.T) {
 
 	// Delete some tables from L0
 	edit2 := &CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{},
+		AddSSTables:    map[int][]FileMetadata{},
 		DeleteSSTables: map[int]map[common.FileNo]struct{}{
 			0: {2: {}, 4: {}},
 		},
@@ -63,10 +71,8 @@ func TestApplyCompactionEdit(t *testing.T) {
 
 	v = m.Current()
 	require.Equal(t, 2, len(v.Levels[0]))
-	require.Contains(t, v.Levels[0], common.FileNo(1))
-	require.Contains(t, v.Levels[0], common.FileNo(3))
-	require.NotContains(t, v.Levels[0], common.FileNo(2))
-	require.NotContains(t, v.Levels[0], common.FileNo(4))
+	require.Equal(t, common.FileNo(1), v.Levels[0][0].FileNo)
+	require.Equal(t, common.FileNo(3), v.Levels[0][1].FileNo)
 }
 
 func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
@@ -74,9 +80,16 @@ func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 
 	// Add initial L0 and L1 tables
 	edit1 := &CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{
-			0: {1: {}, 2: {}, 3: {}},
-			1: {10: {}, 11: {}},
+		AddSSTables: map[int][]FileMetadata{
+			0: {
+				{FileNo: 1},
+				{FileNo: 2},
+				{FileNo: 3},
+			},
+			1: {
+				{FileNo: 10},
+				{FileNo: 11},
+			},
 		},
 		DeleteSSTables: map[int]map[common.FileNo]struct{}{},
 	}
@@ -88,8 +101,11 @@ func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 			0: {1: {}, 2: {}},
 			1: {10: {}},
 		},
-		AddSSTables: map[int]map[common.FileNo]struct{}{
-			1: {20: {}, 21: {}},
+		AddSSTables: map[int][]FileMetadata{
+			1: {
+				{FileNo: 20},
+				{FileNo: 21},
+			},
 		},
 	}
 	m.Apply(edit2)
@@ -98,13 +114,17 @@ func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 
 	// L0 should only have table 3
 	require.Equal(t, 1, len(v.Levels[0]))
-	require.Contains(t, v.Levels[0], common.FileNo(3))
+	require.Equal(t, common.FileNo(3), v.Levels[0][0].FileNo)
 
 	// L1 should have tables 11, 20, 21
 	require.Equal(t, 3, len(v.Levels[1]))
-	require.Contains(t, v.Levels[1], common.FileNo(11))
-	require.Contains(t, v.Levels[1], common.FileNo(20))
-	require.Contains(t, v.Levels[1], common.FileNo(21))
+	fileNos := make([]common.FileNo, len(v.Levels[1]))
+	for i, fm := range v.Levels[1] {
+		fileNos[i] = fm.FileNo
+	}
+	require.Contains(t, fileNos, common.FileNo(11))
+	require.Contains(t, fileNos, common.FileNo(20))
+	require.Contains(t, fileNos, common.FileNo(21))
 
 	// NextSSTableNumber should be updated
 	require.Equal(t, common.FileNo(22), v.NextSSTableNumber)
@@ -115,8 +135,11 @@ func TestVersionIsolation(t *testing.T) {
 
 	// Add initial tables
 	edit1 := &CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{
-			0: {1: {}, 2: {}},
+		AddSSTables: map[int][]FileMetadata{
+			0: {
+				{FileNo: 1},
+				{FileNo: 2},
+			},
 		},
 		DeleteSSTables: map[int]map[common.FileNo]struct{}{},
 	}
@@ -128,8 +151,10 @@ func TestVersionIsolation(t *testing.T) {
 
 	// Apply another edit
 	edit2 := &CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{
-			0: {3: {}},
+		AddSSTables: map[int][]FileMetadata{
+			0: {
+				{FileNo: 3},
+			},
 		},
 		DeleteSSTables: map[int]map[common.FileNo]struct{}{},
 	}
@@ -141,9 +166,8 @@ func TestVersionIsolation(t *testing.T) {
 
 	// Old snapshot should be unchanged
 	require.Equal(t, 2, len(v1.Levels[0]))
-	require.Contains(t, v1.Levels[0], common.FileNo(1))
-	require.Contains(t, v1.Levels[0], common.FileNo(2))
-	require.NotContains(t, v1.Levels[0], common.FileNo(3))
+	require.Equal(t, common.FileNo(1), v1.Levels[0][0].FileNo)
+	require.Equal(t, common.FileNo(2), v1.Levels[0][1].FileNo)
 }
 
 func TestNextSSTableNumberPreservation(t *testing.T) {
@@ -151,8 +175,11 @@ func TestNextSSTableNumberPreservation(t *testing.T) {
 
 	// Add tables with high file numbers
 	edit := &CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{
-			0: {100: {}, 200: {}},
+		AddSSTables: map[int][]FileMetadata{
+			0: {
+				{FileNo: 100},
+				{FileNo: 200},
+			},
 		},
 		DeleteSSTables: map[int]map[common.FileNo]struct{}{},
 	}
@@ -163,7 +190,7 @@ func TestNextSSTableNumberPreservation(t *testing.T) {
 
 	// Delete tables but counter should remain
 	edit2 := &CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{},
+		AddSSTables: map[int][]FileMetadata{},
 		DeleteSSTables: map[int]map[common.FileNo]struct{}{
 			0: {100: {}, 200: {}},
 		},
