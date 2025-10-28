@@ -24,17 +24,14 @@ func printHelp() {
 }
 
 func main() {
-	walThreshold := 100
-	maxSSTableLevel := 3
-
-	engine, err := db.Open(db.WithWALThreshold(walThreshold), db.WithMaxSSTableLevel(maxSSTableLevel))
+	engine, err := db.Open()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Println("adb - amethyst database")
-	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", walThreshold, maxSSTableLevel)
+	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", engine.Opts.WALThreshold, engine.Opts.MaxSSTableLevel)
 	fmt.Println()
 	printHelp()
 

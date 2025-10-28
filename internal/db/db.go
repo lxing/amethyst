@@ -16,27 +16,27 @@ import (
 
 var ErrNotFound = errors.New("key not found")
 
-type options struct {
-	walThreshold    int
-	maxSSTableLevel int
+type Options struct {
+	WALThreshold    int
+	MaxSSTableLevel int
 }
 
-var DEFAULT_OPTS = options{
-	walThreshold:    100,
-	maxSSTableLevel: 3,
+var DefaultOptions = Options{
+	WALThreshold:    256,
+	MaxSSTableLevel: 3,
 }
 
-type Option func(*options)
+type Option func(*Options)
 
 func WithWALThreshold(n int) Option {
-	return func(o *options) {
-		o.walThreshold = n
+	return func(o *Options) {
+		o.WALThreshold = n
 	}
 }
 
 func WithMaxSSTableLevel(n int) Option {
-	return func(o *options) {
-		o.maxSSTableLevel = n
+	return func(o *Options) {
+		o.MaxSSTableLevel = n
 	}
 }
 
@@ -46,11 +46,11 @@ type DB struct {
 	memtable memtable.Memtable
 	wal      wal.WAL
 	manifest *manifest.Manifest
-	opts     options
+	Opts     Options
 }
 
 func Open(optFns ...Option) (*DB, error) {
-	opts := DEFAULT_OPTS
+	opts := DefaultOptions
 	for _, fn := range optFns {
 		fn(&opts)
 	}
@@ -59,13 +59,13 @@ func Open(optFns ...Option) (*DB, error) {
 	if err := os.MkdirAll("wal", 0755); err != nil {
 		return nil, err
 	}
-	for i := 0; i <= opts.maxSSTableLevel; i++ {
+	for i := 0; i <= opts.MaxSSTableLevel; i++ {
 		if err := os.MkdirAll(fmt.Sprintf("sstable/%d", i), 0755); err != nil {
 			return nil, err
 		}
 	}
 
-	m := manifest.NewManifest(opts.maxSSTableLevel + 1)
+	m := manifest.NewManifest(opts.MaxSSTableLevel + 1)
 
 	// Create initial WAL
 	walPath := common.WALPath(m.Current().NextWALNumber)
@@ -80,7 +80,7 @@ func Open(optFns ...Option) (*DB, error) {
 		memtable: memtable.NewMapMemtable(),
 		wal:      log,
 		manifest: m,
-		opts:     opts,
+		Opts:     opts,
 	}, nil
 }
 
@@ -93,7 +93,7 @@ func (d *DB) Put(key, value []byte) error {
 	defer d.mu.Unlock()
 
 	// Check if we need to flush memtable
-	if d.wal.Len() >= d.opts.walThreshold {
+	if d.wal.Len() >= d.Opts.WALThreshold {
 		if err := d.flushMemtable(); err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ func (d *DB) Delete(key []byte) error {
 	defer d.mu.Unlock()
 
 	// Check if we need to flush memtable
-	if d.wal.Len() >= d.opts.walThreshold {
+	if d.wal.Len() >= d.Opts.WALThreshold {
 		if err := d.flushMemtable(); err != nil {
 			return err
 		}
@@ -263,3 +263,4 @@ func (d *DB) writeSSTable() error {
 
 	return nil
 }
+
