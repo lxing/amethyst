@@ -4,14 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
-	"amethyst/internal/common"
 	"amethyst/internal/db"
-	"amethyst/internal/sstable"
-	"amethyst/internal/wal"
 )
 
 func printHelp() {
@@ -24,35 +20,6 @@ func printHelp() {
 	fmt.Println("  help               - show this help")
 	fmt.Println("  exit, quit         - exit the program")
 	fmt.Println()
-}
-
-var kvPairs = [][2]string{
-	{"apple", "artichoke"},
-	{"banana", "broccoli"},
-	{"cherry", "cabbage"},
-	{"durian", "daikon"},
-	{"elderberry", "eggplant"},
-	{"fig", "fennel"},
-	{"grapefruit", "ginger"},
-	{"honeydew", "horseradish"},
-	{"imbe", "ivygourd"},
-	{"jackfruit", "jicama"},
-	{"kiwi", "kale"},
-	{"lime", "leek"},
-	{"mango", "mushroom"},
-	{"nectarine", "nopale"},
-	{"orange", "okra"},
-	{"peach", "peas"},
-	{"quince", "quinoa"},
-	{"raspberry", "radish"},
-	{"strawberry", "spinach"},
-	{"tangerine", "tomato"},
-	{"ugni", "ube"},
-	{"voavanga", "vanilla"},
-	{"watermelon", "watercress"},
-	{"ximenia", "xanthan"},
-	{"yuzu", "yam"},
-	{"zarzamora", "zucchini"},
 }
 
 func main() {
@@ -135,27 +102,7 @@ func main() {
 				fmt.Println("seed: x must be a positive integer")
 				continue
 			}
-			count := 0
-			startIndex := seedIndex
-			for _, pair := range kvPairs {
-				for i := 0; i < x; i++ {
-					key := fmt.Sprintf("%s%d", pair[0], seedIndex+i)
-					value := fmt.Sprintf("%s%d", pair[1], seedIndex+i)
-					if err := engine.Put([]byte(key), []byte(value)); err != nil {
-						fmt.Printf("seed error: %v\n", err)
-						continue
-					}
-					count++
-				}
-			}
-			seedIndex += x
-
-			// Persist seed index to DB
-			if err := engine.Put([]byte("__cli_seed_index__"), []byte(fmt.Sprint(seedIndex))); err != nil {
-				fmt.Printf("warning: failed to persist seed index: %v\n", err)
-			}
-
-			fmt.Printf("seeded %d entries (26 * %d, index %d-%d)\n", count, x, startIndex, seedIndex-1)
+			runSeed(engine, x, &seedIndex)
 		case "inspect":
 			if len(parts) != 2 {
 				fmt.Println("usage: inspect <file.log|file.sst>")
@@ -175,84 +122,4 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "input error: %v\n", err)
 	}
-}
-
-func inspectFile(path string) {
-	ext := strings.ToLower(filepath.Ext(path))
-
-	switch ext {
-	case ".log":
-		inspectWAL(path)
-	case ".sst":
-		inspectSSTable(path)
-	default:
-		fmt.Printf("unknown file type: %s (expected .log or .sst)\n", ext)
-	}
-}
-
-func inspectWAL(path string) {
-	fmt.Printf("Inspecting WAL: %s\n", path)
-	fmt.Println()
-
-	w, err := wal.NewWAL(path)
-	if err != nil {
-		fmt.Printf("failed to open WAL: %v\n", err)
-		return
-	}
-	defer w.Close()
-
-	iter, err := w.Iterator()
-	if err != nil {
-		fmt.Printf("failed to create iterator: %v\n", err)
-		return
-	}
-
-	count := 0
-	for {
-		entry, err := iter.Next()
-		if err != nil {
-			fmt.Printf("error reading entry: %v\n", err)
-			return
-		}
-		if entry == nil {
-			break
-		}
-		count++
-	}
-
-	fmt.Printf("Total entries: %d\n", count)
-	fmt.Println()
-}
-
-func inspectSSTable(path string) {
-	fmt.Printf("Inspecting SSTable: %s\n", path)
-	fmt.Println()
-
-	// Extract file number from path (e.g., "sstable/0/123.sst" -> 123)
-	filename := filepath.Base(path)
-	fileNoStr := strings.TrimSuffix(filename, ".sst")
-	var fileNo common.FileNo
-	if _, err := fmt.Sscanf(fileNoStr, "%d", &fileNo); err != nil {
-		fmt.Printf("failed to parse file number from %s: %v\n", filename, err)
-		return
-	}
-
-	table, err := sstable.OpenSSTable(path, fileNo, nil)
-	if err != nil {
-		fmt.Printf("failed to open SSTable: %v\n", err)
-		return
-	}
-	defer table.Close()
-
-	indexEntries := table.GetIndex()
-
-	fmt.Printf("Total blocks: %d\n", len(indexEntries))
-	fmt.Println()
-	fmt.Println("Index entries (first key of each block):")
-	fmt.Println()
-
-	for i, entry := range indexEntries {
-		fmt.Printf("Block %d: offset=%d key=%q\n", i, entry.BlockOffset, string(entry.Key))
-	}
-	fmt.Println()
 }
