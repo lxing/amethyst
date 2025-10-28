@@ -4,3 +4,6 @@ sstable/
 
 # Go build cache
 .gocache/
+
+# Built binaries
+cli
