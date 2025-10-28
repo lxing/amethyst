@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
+	"time"
 
 	"amethyst/internal/common"
 	"amethyst/internal/manifest"
@@ -15,6 +17,30 @@ import (
 )
 
 var ErrNotFound = errors.New("key not found")
+
+func init() {
+	// Disable timestamp prefix in logs
+	log.SetFlags(0)
+}
+
+// logDuration logs a message with the elapsed time since start.
+func logDuration(start time.Time, format string, args ...interface{}) {
+	elapsed := time.Since(start)
+	// Format duration to 3 decimal places
+	var duration string
+	switch {
+	case elapsed < time.Microsecond:
+		duration = fmt.Sprintf("%.3fns", float64(elapsed.Nanoseconds()))
+	case elapsed < time.Millisecond:
+		duration = fmt.Sprintf("%.3fµs", float64(elapsed.Nanoseconds())/1000)
+	case elapsed < time.Second:
+		duration = fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1000000)
+	default:
+		duration = fmt.Sprintf("%.3fs", elapsed.Seconds())
+	}
+	msg := fmt.Sprintf(format, args...)
+	log.Printf("(%s) %s", duration, msg)
+}
 
 type Options struct {
 	WALThreshold    int
@@ -210,7 +236,7 @@ func (d *DB) flushMemtable() error {
 		return err
 	}
 
-	// 3. Write memtable to SSTable (stubbed for now)
+	// 3. Write memtable to SSTable
 	if err := d.writeSSTable(); err != nil {
 		return err
 	}
@@ -228,6 +254,8 @@ func (d *DB) flushMemtable() error {
 // writeSSTable writes the current memtable to an SSTable file.
 // Must be called with d.mu held.
 func (d *DB) writeSSTable() error {
+	start := time.Now()
+
 	// Get next SSTable number from manifest
 	v := d.manifest.Current()
 	fileNo := v.NextSSTableNumber
@@ -261,6 +289,7 @@ func (d *DB) writeSSTable() error {
 	}
 	d.manifest.Apply(edit)
 
+	logDuration(start, "flushed wal to %d.sst", fileNo)
 	return nil
 }
 
