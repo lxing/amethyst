@@ -352,11 +352,22 @@ func (d *DB) writeSSTable() error {
 	return nil
 }
 
-// Memtable returns the current memtable for inspection.
 func (d *DB) Memtable() memtable.Memtable {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.memtable
+}
+
+func (d *DB) WAL() wal.WAL {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.wal
+}
+
+func (d *DB) Manifest() *manifest.Manifest {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.manifest
 }
 
 // Close stops all database operations and releases resources.

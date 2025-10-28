@@ -24,7 +24,7 @@ func printHelp() {
 	fmt.Println("  get     <key>          - read a value")
 	fmt.Println("  delete  <key>          - delete a key")
 	fmt.Println("  seed    <x>            - load 26*x fruit/vegetable pairs")
-	fmt.Println("  inspect <memtable|file.log|file.sst> - inspect memtable or file")
+	fmt.Println("  inspect <all|memtable|file.log|file.sst> - inspect database or file")
 	fmt.Println("  dump    <memtable|file.log|file.sst> - dump all entries")
 	fmt.Println("  clear                  - delete all .log and .sst files")
 	fmt.Println("  help                   - show this help")
@@ -169,10 +169,12 @@ func main() {
 			runSeed(ctx.engine, x, &ctx.seedIndex)
 		case "inspect":
 			if len(parts) != 2 {
-				fmt.Println("usage: inspect <memtable|file.log|file.sst>")
+				fmt.Println("usage: inspect <all|memtable|file.log|file.sst>")
 				continue
 			}
-			if parts[1] == "memtable" {
+			if parts[1] == "all" {
+				inspectAll(ctx.engine)
+			} else if parts[1] == "memtable" {
 				inspectMemtable(ctx.engine)
 			} else {
 				inspectFile(parts[1])

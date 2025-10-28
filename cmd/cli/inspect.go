@@ -175,3 +175,120 @@ func inspectMemtable(engine *db.DB) {
 	fmt.Printf("Total entries: %d\n", count)
 	fmt.Println()
 }
+
+// renderBoxRow prints boxes side-by-side with ASCII borders and 1 space padding.
+// Example output:
+//   LM: ┌──────────────┐ ┌──────────────┐
+//       │ Memtable     │ │ WAL 0.log    │
+//       │ 5 entries    │ │ 5 entries    │
+//       └──────────────┘ └──────────────┘
+func renderBoxRow(label string, boxes [][]string, width int) {
+	if len(boxes) == 0 {
+		return
+	}
+
+	maxLines := 0
+	for _, box := range boxes {
+		if len(box) > maxLines {
+			maxLines = len(box)
+		}
+	}
+
+	fmt.Printf("%s: ", label)
+
+	// Top borders
+	for i := 0; i < len(boxes); i++ {
+		fmt.Print("┌")
+		for j := 0; j < width+2; j++ {
+			fmt.Print("─")
+		}
+		fmt.Print("┐ ")
+	}
+	fmt.Println()
+
+	// Content lines
+	for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
+		fmt.Print("    ")
+		for _, box := range boxes {
+			content := ""
+			if lineIdx < len(box) {
+				content = box[lineIdx]
+			}
+			if len(content) > width {
+				content = content[:width]
+			}
+			fmt.Printf("│ %-*s │ ", width, content)
+		}
+		fmt.Println()
+	}
+
+	// Bottom borders
+	fmt.Print("    ")
+	for i := 0; i < len(boxes); i++ {
+		fmt.Print("└")
+		for j := 0; j < width+2; j++ {
+			fmt.Print("─")
+		}
+		fmt.Print("┘ ")
+	}
+	fmt.Println()
+}
+
+func inspectAll(engine *db.DB) {
+	const boxWidth = 12
+
+	version := engine.Manifest().Current()
+
+	// LM: Memory level
+	memCount := engine.Memtable().Len()
+	walCount := engine.WAL().Len()
+
+	memBox := []string{
+		"Memtable",
+		fmt.Sprintf("%d entries", memCount),
+	}
+	walBox := []string{
+		fmt.Sprintf("WAL %d.log", version.CurrentWAL),
+		fmt.Sprintf("%d entries", walCount),
+	}
+	renderBoxRow("LM", [][]string{memBox, walBox}, boxWidth)
+
+	// Each SSTable level
+	for level, fileNos := range version.Levels {
+		if len(fileNos) == 0 {
+			fmt.Printf("L%d: (empty)\n", level)
+			continue
+		}
+
+		var boxes [][]string
+		for _, fileNo := range fileNos {
+			table, err := engine.Manifest().GetTable(fileNo, level)
+			if err != nil {
+				boxes = append(boxes, []string{
+					fmt.Sprintf("%d.sst", fileNo),
+					"error",
+				})
+				continue
+			}
+
+			entryCount := table.Len()
+			index := table.GetIndex()
+
+			firstKey := "?"
+			if len(index.Entries) > 0 {
+				firstKey = string(index.Entries[0].Key)
+			}
+
+			boxes = append(boxes, []string{
+				fmt.Sprintf("%d.sst", fileNo),
+				fmt.Sprintf("%d entries", entryCount),
+				fmt.Sprintf("a:%s", firstKey),
+				"z:<ph>",
+			})
+
+			table.Close()
+		}
+
+		renderBoxRow(fmt.Sprintf("L%d", level), boxes, boxWidth)
+	}
+}
