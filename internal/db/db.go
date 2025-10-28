@@ -229,19 +229,20 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	// Check memtable first
+	common.Logf("get key=%q: checking memtable\n", string(key))
 	entry, ok := d.memtable.Get(key)
 	if ok {
-		// Found in memtable
 		if entry.Type == common.EntryTypeDelete {
+			common.Logf("get key=%q: found tombstone in memtable\n", string(key))
 			return nil, ErrNotFound
 		}
+		common.Logf("get key=%q: found in memtable\n", string(key))
 		return bytes.Clone(entry.Value), nil
 	}
 
-	// Not in memtable, search SSTables from newest to oldest
 	version := d.manifest.Current()
 	for level, fileNos := range version.Levels {
+		common.Logf("get key=%q: checking L%d (%d files)\n", string(key), level, len(fileNos))
 		// TODO: Optimize lookup for L1+
 		// L0 files have overlapping ranges, so we must check all files.
 		// L1+ files are non-overlapping within a level, so we can binary search
@@ -249,28 +250,28 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 		for _, fileNo := range fileNos {
 			table, err := d.manifest.GetTable(fileNo, level)
 			if err != nil {
-				// Table might not exist yet, continue
 				continue
 			}
 
 			entry, err := table.Get(key)
 			if err == sstable.ErrNotFound {
-				// Not in this table, continue
+				common.Logf("get key=%q: not in L%d/%d.sst\n", string(key), level, fileNo)
 				continue
 			}
 			if err != nil {
-				// Real error
 				return nil, err
 			}
 
-			// Found it
 			if entry.Type == common.EntryTypeDelete {
+				common.Logf("get key=%q: found tombstone in L%d/%d.sst\n", string(key), level, fileNo)
 				return nil, ErrNotFound
 			}
+			common.Logf("get key=%q: found in L%d/%d.sst\n", string(key), level, fileNo)
 			return bytes.Clone(entry.Value), nil
 		}
 	}
 
+	common.Logf("get key=%q: not found\n", string(key))
 	return nil, ErrNotFound
 }
 
