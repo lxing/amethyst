@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"time"
 
+	"amethyst/internal/common"
 	"amethyst/internal/db"
 )
 
@@ -37,6 +39,7 @@ var kvPairs = [][2]string{
 }
 
 func runSeed(engine *db.DB, x int, seedIndex *int) {
+	start := time.Now()
 	count := 0
 	startIndex := *seedIndex
 
@@ -65,5 +68,7 @@ func runSeed(engine *db.DB, x int, seedIndex *int) {
 		fmt.Printf("warning: failed to persist seed index: %v\n", err)
 	}
 
-	fmt.Printf("seeded %d entries (26 * %d, index %d-%d)\n", count, x, startIndex, *seedIndex-1)
+	avgPerEntry := time.Since(start) / time.Duration(count)
+	common.LogDuration(start, "seeded %d entries (26 * %d, index %d-%d) - %v/entry",
+		count, x, startIndex, *seedIndex-1, avgPerEntry)
 }
