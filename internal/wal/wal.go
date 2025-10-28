@@ -10,34 +10,10 @@ import (
 
 // walImpl appends entries to a single file on disk.
 type walImpl struct {
-	file       *os.File
-	entryCount int
+	file *os.File
 }
 
 var _ WAL = (*walImpl)(nil)
-
-// countEntries counts the number of entries in a WAL file.
-func countEntries(path string) (int, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-
-	reader := bufio.NewReader(f)
-	count := 0
-	for {
-		entry, err := common.ReadEntry(reader)
-		if err != nil {
-			return 0, err
-		}
-		if entry == nil {
-			break
-		}
-		count++
-	}
-	return count, nil
-}
 
 // OpenWAL opens an existing WAL file for appending (used during recovery).
 func OpenWAL(path string) (*walImpl, error) {
@@ -45,15 +21,7 @@ func OpenWAL(path string) (*walImpl, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Count existing entries in the file
-	count, err := countEntries(path)
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-
-	return &walImpl{file: f, entryCount: count}, nil
+	return &walImpl{file: f}, nil
 }
 
 // CreateWAL creates a new WAL file, truncating if it exists (used during rotation).
@@ -90,7 +58,6 @@ func (l *walImpl) WriteEntry(batch []*common.Entry) error {
 			return err
 		}
 	}
-	l.entryCount += len(batch)
 	return l.file.Sync()
 }
 
@@ -108,9 +75,24 @@ func (l *walImpl) Iterator() (common.EntryIterator, error) {
 	}, nil
 }
 
-// Len returns the number of entries written to this WAL.
+// Len returns the number of entries in this WAL by iterating through the file.
+// This is O(n) and should be called sparingly (e.g., for debugging/inspection).
 func (l *walImpl) Len() int {
-	return l.entryCount
+	iter, err := l.Iterator()
+	if err != nil {
+		return 0
+	}
+
+	count := 0
+	for {
+		entry, err := iter.Next()
+		if err != nil || entry == nil {
+			// Iterator auto-closes on EOF or error
+			break
+		}
+		count++
+	}
+	return count
 }
 
 type walIterator struct {
