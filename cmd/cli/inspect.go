@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -9,6 +10,92 @@ import (
 	"amethyst/internal/sstable"
 	"amethyst/internal/wal"
 )
+
+// inspectCompleter provides tab completion for inspect command filenames
+// This is the global completer for liner, but it only completes for "inspect " commands
+// Runs on every tab press, using ReadDir for performance
+func inspectCompleter(line string) []string {
+	// Only complete for inspect command
+	if !strings.HasPrefix(line, "inspect ") {
+		return nil
+	}
+
+	// Get the partial path after "inspect "
+	partial := strings.TrimPrefix(line, "inspect ")
+
+	var matches []string
+
+	// Case 1: Starting completion - suggest top-level directories
+	if partial == "" || !strings.Contains(partial, "/") {
+		if strings.HasPrefix("wal/", partial) {
+			matches = append(matches, "inspect wal/")
+		}
+		if strings.HasPrefix("sstable/", partial) {
+			matches = append(matches, "inspect sstable/")
+		}
+		return matches
+	}
+
+	// Case 2: Completing wal/ directory - show .log files
+	if strings.HasPrefix(partial, "wal/") {
+		entries, err := os.ReadDir("wal")
+		if err != nil {
+			return nil
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
+				fullPath := "wal/" + entry.Name()
+				if strings.HasPrefix(fullPath, partial) {
+					matches = append(matches, "inspect "+fullPath)
+				}
+			}
+		}
+		return matches
+	}
+
+	// Case 3: Completing sstable/ directory
+	if strings.HasPrefix(partial, "sstable/") {
+		rest := strings.TrimPrefix(partial, "sstable/")
+
+		// Case 3a: Completing level directory (sstable/<TAB> or sstable/0<TAB>)
+		if !strings.Contains(rest, "/") {
+			entries, err := os.ReadDir("sstable")
+			if err != nil {
+				return nil
+			}
+			for _, entry := range entries {
+				if entry.IsDir() {
+					levelDir := "sstable/" + entry.Name() + "/"
+					if strings.HasPrefix(levelDir, partial) {
+						matches = append(matches, "inspect "+levelDir)
+					}
+				}
+			}
+			return matches
+		}
+
+		// Case 3b: Completing .sst files within a level (sstable/0/<TAB>)
+		parts := strings.SplitN(rest, "/", 2)
+		if len(parts) == 2 {
+			levelDir := "sstable/" + parts[0]
+			entries, err := os.ReadDir(levelDir)
+			if err != nil {
+				return nil
+			}
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sst") {
+					fullPath := levelDir + "/" + entry.Name()
+					if strings.HasPrefix(fullPath, partial) {
+						matches = append(matches, "inspect "+fullPath)
+					}
+				}
+			}
+			return matches
+		}
+	}
+
+	return matches
+}
 
 func inspectFile(path string) {
 	ext := strings.ToLower(filepath.Ext(path))

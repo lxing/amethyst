@@ -43,6 +43,7 @@ func main() {
 	defer line.Close()
 
 	line.SetCtrlCAborts(true)
+	line.SetCompleter(inspectCompleter)
 
 	// Load history from file
 	history, err := newHistory()
