@@ -153,9 +153,10 @@ func replayWAL(w wal.WAL, mt memtable.Memtable) (uint64, error) {
 			maxSeq = entry.Seq
 		}
 
-		if entry.Type == common.EntryTypePut {
+		switch entry.Type {
+		case common.EntryTypePut:
 			mt.Put(entry.Key, entry.Value)
-		} else if entry.Type == common.EntryTypeDelete {
+		case common.EntryTypeDelete:
 			mt.Delete(entry.Key)
 		}
 	}
