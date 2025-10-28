@@ -64,7 +64,6 @@ func (d *DB) groupCommitLoop() {
 		batch := make([]*writeRequest, 0, maxBatchSize)
 
 		// Collect requests until timeout or batch full
-		// Go 1.23+ allows Reset on timers in any state
 		timer.Reset(batchTimeout)
 		done := false
 		for len(batch) < maxBatchSize && !done {
