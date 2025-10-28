@@ -37,10 +37,12 @@ func TestWriteSSTable(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Write SSTable
-	totalBytes, err := WriteSSTable(&buf, iter)
+	result, err := WriteSSTable(&buf, iter)
 	require.NoError(t, err)
-	require.Greater(t, totalBytes, uint64(0))
-	require.Equal(t, totalBytes, uint64(buf.Len()))
+	require.Greater(t, result.BytesWritten, uint64(0))
+	require.Equal(t, result.BytesWritten, uint64(buf.Len()))
+	require.Equal(t, []byte("apple"), result.SmallestKey)
+	require.Equal(t, []byte("cherry"), result.LargestKey)
 
 	// Read and verify footer (last FOOTER_SIZE bytes)
 	data := buf.Bytes()
