@@ -6,7 +6,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"amethyst/internal/common"
 	"amethyst/internal/db"
 	"github.com/peterh/liner"
 )
@@ -120,31 +122,37 @@ func main() {
 				fmt.Println("usage: put <key> <value>")
 				continue
 			}
+			start := time.Now()
 			if err := ctx.engine.Put([]byte(parts[1]), []byte(parts[2])); err != nil {
 				fmt.Printf("put error: %v\n", err)
 				continue
 			}
+			common.LogDuration(start, "put key=%q", parts[1])
 			fmt.Println("ok")
 		case "get":
 			if len(parts) != 2 {
 				fmt.Println("usage: get <key>")
 				continue
 			}
+			start := time.Now()
 			value, err := ctx.engine.Get([]byte(parts[1]))
 			if err != nil {
 				fmt.Printf("get error: %v\n", err)
 				continue
 			}
+			common.LogDuration(start, "get key=%q", parts[1])
 			fmt.Printf("%s\n", string(value))
 		case "delete":
 			if len(parts) != 2 {
 				fmt.Println("usage: delete <key>")
 				continue
 			}
+			start := time.Now()
 			if err := ctx.engine.Delete([]byte(parts[1])); err != nil {
 				fmt.Printf("delete error: %v\n", err)
 				continue
 			}
+			common.LogDuration(start, "delete key=%q", parts[1])
 			fmt.Println("ok")
 		case "seed":
 			if len(parts) != 2 {

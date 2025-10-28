@@ -158,11 +158,6 @@ func replayWAL(w wal.WAL, mt memtable.Memtable) (uint64, error) {
 }
 
 func (d *DB) Put(key, value []byte) error {
-	start := time.Now()
-	defer func() {
-		common.LogDuration(start, "put key=%q", string(key))
-	}()
-
 	if len(key) == 0 {
 		return errors.New("db: key must be non-empty")
 	}
@@ -194,11 +189,6 @@ func (d *DB) Put(key, value []byte) error {
 }
 
 func (d *DB) Delete(key []byte) error {
-	start := time.Now()
-	defer func() {
-		common.LogDuration(start, "delete key=%q", string(key))
-	}()
-
 	if len(key) == 0 {
 		return errors.New("db: key must be non-empty")
 	}
@@ -229,11 +219,6 @@ func (d *DB) Delete(key []byte) error {
 }
 
 func (d *DB) Get(key []byte) ([]byte, error) {
-	start := time.Now()
-	defer func() {
-		common.LogDuration(start, "get key=%q", string(key))
-	}()
-
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
