@@ -38,11 +38,13 @@ func clearDatabase(ctx *cmdContext) error {
 		return fmt.Errorf("failed to close database: %w", err)
 	}
 
-	// Remove wal/ and sstable/ directories entirely
+	// Remove all database files and directories
 	os.RemoveAll("wal")
 	os.RemoveAll("sstable")
+	os.Remove("MANIFEST")
+	os.Remove("MANIFEST.tmp")
 
-	// Reopen engine (will recreate directories)
+	// Reopen engine (will recreate everything)
 	newEngine, err := db.Open()
 	if err != nil {
 		return fmt.Errorf("failed to reopen database: %w", err)
