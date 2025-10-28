@@ -63,18 +63,18 @@ func runSeed(engine *db.DB, x int, seedIndex *int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	})
 
-	for _, pair := range shuffled {
-		for i := 0; i < x; i++ {
-			key := fmt.Sprintf("%s%d", pair[0], *seedIndex+i)
-			value := fmt.Sprintf("%s%d", pair[1], *seedIndex+i)
+	for i := 0; i < x; i++ {
+		for _, pair := range shuffled {
+			key := fmt.Sprintf("%s%d", pair[0], *seedIndex)
+			value := fmt.Sprintf("%s%d", pair[1], *seedIndex)
 			if err := engine.Put([]byte(key), []byte(value)); err != nil {
 				fmt.Printf("seed error: %v\n", err)
 				continue
 			}
 			count++
 		}
+		*seedIndex++
 	}
-	*seedIndex += x
 
 	// Persist seed index to DB
 	if err := engine.Put([]byte(seedIndexKey), []byte(fmt.Sprint(*seedIndex))); err != nil {
