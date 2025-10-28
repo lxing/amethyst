@@ -6,4 +6,4 @@ sstable/
 .gocache/
 
 # Built binaries
-cli
+/cli
