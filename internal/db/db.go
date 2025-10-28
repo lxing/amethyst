@@ -42,12 +42,13 @@ func WithMaxSSTableLevel(n int) Option {
 }
 
 type DB struct {
-	mu       sync.RWMutex
-	nextSeq  uint64
-	memtable memtable.Memtable
-	wal      wal.WAL
-	manifest *manifest.Manifest
-	Opts     Options
+	mu        sync.RWMutex
+	nextSeq   uint64
+	memtable  memtable.Memtable
+	wal       wal.WAL
+	manifest  *manifest.Manifest
+	Opts      Options
+	writeChan chan *writeRequest
 }
 
 func Open(optFns ...Option) (*DB, error) {
@@ -122,13 +123,19 @@ func Open(optFns ...Option) (*DB, error) {
 		nextSeq = 0
 	}
 
-	return &DB{
-		nextSeq:  nextSeq,
-		memtable: mt,
-		wal:      log,
-		manifest: m,
-		Opts:     opts,
-	}, nil
+	db := &DB{
+		nextSeq:   nextSeq,
+		memtable:  mt,
+		wal:       log,
+		manifest:  m,
+		Opts:      opts,
+		writeChan: make(chan *writeRequest, 100),
+	}
+
+	// Start background group commit loop
+	go db.groupCommitLoop()
+
+	return db, nil
 }
 
 // replayWAL replays all entries from the WAL into the memtable.
@@ -169,30 +176,20 @@ func (d *DB) Put(key, value []byte) error {
 		return errors.New("db: key must be non-empty")
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	// Check if we need to flush memtable
-	if d.memtable.Len() >= d.Opts.MemtableFlushThreshold {
-		if err := d.flushMemtable(); err != nil {
-			return err
-		}
-	}
-
-	d.nextSeq++
-
 	entry := &common.Entry{
 		Type:  common.EntryTypePut,
-		Seq:   d.nextSeq,
 		Key:   bytes.Clone(key),
 		Value: bytes.Clone(value),
-	}
-	if err := d.wal.WriteEntry([]*common.Entry{entry}); err != nil {
-		return err
+		// Seq assigned by group commit loop
 	}
 
-	d.memtable.Put(entry.Key, entry.Value)
-	return nil
+	req := &writeRequest{
+		entry:    entry,
+		resultCh: make(chan error, 1),
+	}
+
+	d.writeChan <- req
+	return <-req.resultCh
 }
 
 func (d *DB) Delete(key []byte) error {
@@ -200,29 +197,19 @@ func (d *DB) Delete(key []byte) error {
 		return errors.New("db: key must be non-empty")
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	// Check if we need to flush memtable
-	if d.memtable.Len() >= d.Opts.MemtableFlushThreshold {
-		if err := d.flushMemtable(); err != nil {
-			return err
-		}
-	}
-
-	d.nextSeq++
-
 	entry := &common.Entry{
 		Type: common.EntryTypeDelete,
-		Seq:  d.nextSeq,
 		Key:  bytes.Clone(key),
-	}
-	if err := d.wal.WriteEntry([]*common.Entry{entry}); err != nil {
-		return err
+		// Seq assigned by group commit loop
 	}
 
-	d.memtable.Delete(entry.Key)
-	return nil
+	req := &writeRequest{
+		entry:    entry,
+		resultCh: make(chan error, 1),
+	}
+
+	d.writeChan <- req
+	return <-req.resultCh
 }
 
 func (d *DB) Get(key []byte) ([]byte, error) {
