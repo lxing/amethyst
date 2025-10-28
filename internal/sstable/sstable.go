@@ -271,14 +271,14 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 		blockSize := blockEnd - blockOffset
 		blockData := make([]byte, blockSize)
 		if _, err := s.file.ReadAt(blockData, int64(blockOffset)); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read block %d at offset %d from %s: %w", blockIdx, blockOffset, s.file.Name(), err)
 		}
 
 		// Parse block
 		var err error
 		blk, err = block.NewBlock(blockData)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse block %d from %s: %w", blockIdx, s.file.Name(), err)
 		}
 
 		// Cache the parsed block if cache is available

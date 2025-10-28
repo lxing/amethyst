@@ -274,7 +274,7 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 				continue
 			}
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to read from L%d/%d.sst: %w", level, fm.FileNo, err)
 			}
 
 			if entry.Type == common.EntryTypeDelete {
