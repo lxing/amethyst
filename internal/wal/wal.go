@@ -11,7 +11,6 @@ import (
 // walImpl appends entries to a single file on disk.
 type walImpl struct {
 	file       *os.File
-	path       string
 	entryCount int
 }
 
@@ -54,7 +53,7 @@ func OpenWAL(path string) (*walImpl, error) {
 		return nil, err
 	}
 
-	return &walImpl{file: f, path: path, entryCount: count}, nil
+	return &walImpl{file: f, entryCount: count}, nil
 }
 
 // CreateWAL creates a new WAL file, truncating if it exists (used during rotation).
@@ -63,7 +62,7 @@ func CreateWAL(path string) (*walImpl, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &walImpl{file: f, path: path}, nil
+	return &walImpl{file: f}, nil
 }
 
 // Close releases the underlying file handle.
@@ -98,7 +97,7 @@ func (l *walImpl) WriteEntry(batch []*common.Entry) error {
 // Iterator returns a streaming iterator over all log entries.
 // The iterator will automatically close the underlying file when exhausted.
 func (l *walImpl) Iterator() (common.EntryIterator, error) {
-	f, err := os.Open(l.path)
+	f, err := os.Open(l.file.Name())
 	if err != nil {
 		return nil, err
 	}
