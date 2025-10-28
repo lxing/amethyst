@@ -1,24 +1,25 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 
 	"amethyst/internal/db"
+	"github.com/peterh/liner"
 )
 
 func printHelp() {
 	fmt.Println("commands:")
 	fmt.Println("  put     <key> <value>  - write a key-value pair")
 	fmt.Println("  get     <key>          - read a value")
-	fmt.Println("  delete  <key>       - delete a key")
-	fmt.Println("  seed    <x>           - load 26*x fruit/vegetable pairs")
-	fmt.Println("  inspect <file>     - inspect .log or .sst file")
-	fmt.Println("  help               - show this help")
-	fmt.Println("  exit, quit         - exit the program")
+	fmt.Println("  delete  <key>          - delete a key")
+	fmt.Println("  seed    <x>            - load 26*x fruit/vegetable pairs")
+	fmt.Println("  inspect <file>         - inspect .log or .sst file")
+	fmt.Println("  help                   - show this help")
+	fmt.Println("  exit, quit             - exit the program")
 	fmt.Println()
 }
 
@@ -37,6 +38,25 @@ func main() {
 	fmt.Println()
 	printHelp()
 
+	// Initialize liner for command line editing
+	line := liner.NewLiner()
+	defer line.Close()
+
+	line.SetCtrlCAborts(true)
+
+	// Load history from file
+	history, err := newHistory()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to load history: %v\n", err)
+		os.Exit(1)
+	}
+	defer history.save()
+
+	// Load history into liner
+	for _, cmd := range history.commands {
+		line.AppendHistory(cmd)
+	}
+
 	// Load seed index from DB
 	seedIndex := 0
 	if val, err := engine.Get([]byte("__cli_seed_index__")); err == nil {
@@ -45,19 +65,28 @@ func main() {
 			fmt.Printf("resumed seed index from %d\n", seedIndex)
 		}
 	}
-	scanner := bufio.NewScanner(os.Stdin)
+
 	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
+		input, err := line.Prompt("> ")
+		if err != nil {
+			if err == liner.ErrPromptAborted || err == io.EOF {
+				fmt.Println()
+				break
+			}
+			fmt.Fprintf(os.Stderr, "input error: %v\n", err)
 			break
 		}
 
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+		input = strings.TrimSpace(input)
+		if input == "" {
 			continue
 		}
 
-		parts := strings.Fields(line)
+		// Add to history (both liner and our persistent history)
+		line.AppendHistory(input)
+		history.add(input)
+
+		parts := strings.Fields(input)
 		cmd := strings.ToLower(parts[0])
 
 		switch cmd {
@@ -117,9 +146,5 @@ func main() {
 			fmt.Println("unknown command")
 			printHelp()
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "input error: %v\n", err)
 	}
 }
