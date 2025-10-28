@@ -123,7 +123,7 @@ func inspectWAL(path string) {
 	fmt.Printf("Inspecting WAL: %s\n", path)
 	fmt.Println()
 
-	w, err := wal.NewWAL(path)
+	w, err := wal.OpenWAL(path)
 	if err != nil {
 		fmt.Printf("failed to open WAL: %v\n", err)
 		return

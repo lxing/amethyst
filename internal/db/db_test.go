@@ -13,6 +13,8 @@ func TestWALRotation(t *testing.T) {
 	// Clean up
 	defer os.RemoveAll("wal")
 	defer os.RemoveAll("sstable")
+	defer os.Remove("MANIFEST")
+	defer os.Remove("MANIFEST.tmp")
 
 	// Create DB with low WAL threshold
 	d, err := db.Open(db.WithWALThreshold(5))
@@ -60,6 +62,8 @@ func TestSSTableReadAfterFlush(t *testing.T) {
 	// Clean up
 	defer os.RemoveAll("wal")
 	defer os.RemoveAll("sstable")
+	defer os.Remove("MANIFEST")
+	defer os.Remove("MANIFEST.tmp")
 
 	// Create DB with low WAL threshold to trigger flush
 	d, err := db.Open(db.WithWALThreshold(3))
@@ -112,6 +116,8 @@ func TestSSTableWithDeletes(t *testing.T) {
 	// Clean up
 	defer os.RemoveAll("wal")
 	defer os.RemoveAll("sstable")
+	defer os.Remove("MANIFEST")
+	defer os.Remove("MANIFEST.tmp")
 
 	// Create DB
 	d, err := db.Open(db.WithWALThreshold(5))

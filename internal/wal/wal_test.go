@@ -15,7 +15,7 @@ func TestAppendAndIterate(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "log.wal")
 
-	log, err := wal.NewWAL(path)
+	log, err := wal.CreateWAL(path)
 	require.NoError(t, err)
 	defer log.Close()
 
@@ -45,7 +45,7 @@ func TestPersistsAcrossOpen(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "log.wal")
 
-	log, err := wal.NewWAL(path)
+	log, err := wal.CreateWAL(path)
 	require.NoError(t, err)
 
 	batch1 := []*common.Entry{
@@ -59,7 +59,7 @@ func TestPersistsAcrossOpen(t *testing.T) {
 	require.NoError(t, log.WriteEntry(batch1))
 	require.NoError(t, log.Close())
 
-	log, err = wal.NewWAL(path)
+	log, err = wal.OpenWAL(path)
 	require.NoError(t, err)
 	defer log.Close()
 
@@ -83,7 +83,7 @@ func TestBulkAppendBatches(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "log.wal")
 
-	log, err := wal.NewWAL(path)
+	log, err := wal.CreateWAL(path)
 	require.NoError(t, err)
 	defer log.Close()
 

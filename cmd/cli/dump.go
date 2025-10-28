@@ -50,7 +50,7 @@ func dumpWAL(path string) {
 	fmt.Printf("Dumping WAL: %s\n", path)
 	fmt.Println()
 
-	w, err := wal.NewWAL(path)
+	w, err := wal.OpenWAL(path)
 	if err != nil {
 		fmt.Printf("failed to open WAL: %v\n", err)
 		return

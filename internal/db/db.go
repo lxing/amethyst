@@ -66,23 +66,95 @@ func Open(optFns ...Option) (*DB, error) {
 		}
 	}
 
-	m := manifest.NewManifest(opts.MaxSSTableLevel + 1)
+	// Try to load existing manifest
+	var m *manifest.Manifest
+	var log wal.WAL
+	var mt memtable.Memtable
+	var nextSeq uint64
 
-	// Create initial WAL
-	walPath := common.WALPath(m.Current().NextWALNumber)
-	log, err := wal.NewWAL(walPath)
-	if err != nil {
-		return nil, err
+	if manifestFile, err := os.Open("MANIFEST"); err == nil {
+		// Recovery path: manifest exists
+		defer manifestFile.Close()
+
+		version, err := manifest.ReadManifest(manifestFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read manifest: %w", err)
+		}
+
+		m = manifest.NewManifest(opts.MaxSSTableLevel + 1)
+		m.LoadVersion(version)
+
+		// Open existing WAL for recovery
+		walPath := common.WALPath(version.CurrentWAL)
+		log, err = wal.OpenWAL(walPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open WAL: %w", err)
+		}
+
+		// Replay WAL into memtable
+		mt = memtable.NewMapMemtable()
+		nextSeq, err = replayWAL(log, mt)
+		if err != nil {
+			log.Close()
+			return nil, fmt.Errorf("failed to replay WAL: %w", err)
+		}
+
+		common.Logf("recovered from manifest: wal=%d seq=%d\n", version.CurrentWAL, nextSeq)
+	} else {
+		// Fresh DB path: no manifest
+		m = manifest.NewManifest(opts.MaxSSTableLevel + 1)
+
+		// Create initial WAL
+		walPath := common.WALPath(m.Current().NextWALNumber)
+		log, err = wal.CreateWAL(walPath)
+		if err != nil {
+			return nil, err
+		}
+
+		m.SetWAL(m.Current().NextWALNumber)
+		mt = memtable.NewMapMemtable()
+		nextSeq = 0
 	}
 
-	m.SetWAL(m.Current().NextWALNumber)
-
 	return &DB{
-		memtable: memtable.NewMapMemtable(),
+		nextSeq:  nextSeq,
+		memtable: mt,
 		wal:      log,
 		manifest: m,
 		Opts:     opts,
 	}, nil
+}
+
+// replayWAL replays all entries from the WAL into the memtable.
+// Returns the highest sequence number seen.
+func replayWAL(w wal.WAL, mt memtable.Memtable) (uint64, error) {
+	iter, err := w.Iterator()
+	if err != nil {
+		return 0, err
+	}
+
+	var maxSeq uint64
+	for {
+		entry, err := iter.Next()
+		if err != nil {
+			return 0, err
+		}
+		if entry == nil {
+			break
+		}
+
+		if entry.Seq > maxSeq {
+			maxSeq = entry.Seq
+		}
+
+		if entry.Type == common.EntryTypePut {
+			mt.Put(entry.Key, entry.Value)
+		} else if entry.Type == common.EntryTypeDelete {
+			mt.Delete(entry.Key)
+		}
+	}
+
+	return maxSeq, nil
 }
 
 func (d *DB) Put(key, value []byte) error {
@@ -221,7 +293,7 @@ func (d *DB) flushMemtable() error {
 
 	// 2. Create new WAL file
 	newWALPath := common.WALPath(newWALNum)
-	newWAL, err := wal.NewWAL(newWALPath)
+	newWAL, err := wal.CreateWAL(newWALPath)
 	if err != nil {
 		return err
 	}
@@ -234,7 +306,12 @@ func (d *DB) flushMemtable() error {
 	// 4. Update manifest (atomic commit point)
 	d.manifest.SetWAL(newWALNum)
 
-	// 5. Swap to new WAL and new memtable
+	// 5. Persist manifest to disk (makes new files visible)
+	if err := d.manifest.Flush(); err != nil {
+		return err
+	}
+
+	// 6. Swap to new WAL and new memtable
 	d.wal = newWAL
 	d.memtable = memtable.NewMapMemtable()
 

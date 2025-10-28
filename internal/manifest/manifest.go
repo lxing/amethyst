@@ -1,6 +1,9 @@
 package manifest
 
 import (
+	"encoding/json"
+	"io"
+	"os"
 	"sync"
 
 	"amethyst/internal/block_cache"
@@ -67,6 +70,13 @@ func (m *Manifest) Current() *Version {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.current
+}
+
+// LoadVersion replaces the current version with the provided one (used during recovery).
+func (m *Manifest) LoadVersion(v *Version) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.current = v
 }
 
 // SetWAL sets the current WAL and increments NextWALNumber.
@@ -157,4 +167,54 @@ func (m *Manifest) GetTable(fileNo common.FileNo, level int) (sstable.SSTable, e
 	// Cache it
 	m.tableCache[fileNo] = table
 	return table, nil
+}
+
+// WriteManifest serializes a Version to JSON.
+func WriteManifest(w io.Writer, v *Version) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(v)
+}
+
+// ReadManifest deserializes a Version from JSON.
+func ReadManifest(r io.Reader) (*Version, error) {
+	var v Version
+	if err := json.NewDecoder(r).Decode(&v); err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+// Flush atomically writes the current version to disk (MANIFEST file).
+func (m *Manifest) Flush() error {
+	m.mu.RLock()
+	v := m.current
+	m.mu.RUnlock()
+
+	// Atomic write: write to temp file, then rename
+	tmpPath := "MANIFEST.tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return err
+	}
+
+	if err := WriteManifest(f, v); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+
+	// Atomic rename
+	return os.Rename(tmpPath, "MANIFEST")
 }

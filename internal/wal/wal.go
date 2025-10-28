@@ -17,9 +17,18 @@ type walImpl struct {
 
 var _ WAL = (*walImpl)(nil)
 
-// NewWAL creates (or reopens) a WAL file at path.
-func NewWAL(path string) (*walImpl, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+// OpenWAL opens an existing WAL file for appending (used during recovery).
+func OpenWAL(path string) (*walImpl, error) {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	return &walImpl{file: f, path: path}, nil
+}
+
+// CreateWAL creates a new WAL file, truncating if it exists (used during rotation).
+func CreateWAL(path string) (*walImpl, error) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
 		return nil, err
 	}
