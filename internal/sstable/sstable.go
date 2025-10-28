@@ -1,6 +1,7 @@
 package sstable
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"os"
@@ -293,20 +294,27 @@ func (s *sstableImpl) Close() error {
 
 // Iterator returns an iterator that sequentially scans all entries in the SSTable.
 func (s *sstableImpl) Iterator() common.EntryIterator {
-	// TODO: Implement sequential scan through all blocks
-	return &sstableIterator{}
+	// Create a SectionReader for the data region [0, FilterOffset)
+	section := io.NewSectionReader(s.file, 0, int64(s.footer.FilterOffset))
+	return &sstableIterator{
+		reader: bufio.NewReader(section),
+	}
 }
 
 // sstableIterator provides sequential access to all entries in an SSTable.
 type sstableIterator struct {
-	// TODO: Add fields for tracking current block, position, etc.
+	reader *bufio.Reader
 }
 
 var _ common.EntryIterator = (*sstableIterator)(nil)
 
 // Next returns the next entry in the SSTable.
 func (it *sstableIterator) Next() (*common.Entry, error) {
-	// TODO: Implement sequential scan
-	// Should iterate through all blocks in order, reading entries sequentially
-	return nil, nil
+	// Read next entry sequentially
+	entry, err := common.ReadEntry(it.reader)
+	if err != nil {
+		// EOF or read error
+		return nil, err
+	}
+	return entry, nil
 }

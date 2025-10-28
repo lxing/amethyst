@@ -178,9 +178,7 @@ func inspectSSTable(path string) {
 
 	fmt.Printf("Total blocks: %d\n", len(index.Entries))
 	fmt.Printf("Total entries: %d\n", entryCount)
-	fmt.Println()
-	fmt.Println("Index entries (first key of each block):")
-	fmt.Println()
+	fmt.Println("Index entries:")
 
 	for i, entry := range index.Entries {
 		fmt.Printf("Block %d: offset=%d key=%q\n", i, entry.BlockOffset, string(entry.Key))
