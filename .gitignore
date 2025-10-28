@@ -1,6 +1,6 @@
-# Ignore runtime data
-wal/
-sstable/
+# Ignore runtime data directories (not source code)
+/bin/wal/
+/bin/sstable/
 
 # Go build cache
 .gocache/
