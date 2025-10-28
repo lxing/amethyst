@@ -36,51 +36,53 @@ func (d *DB) collectBatch() []*writeRequest {
 	return batch
 }
 
+// processBatch processes a batch of write requests under the DB lock.
+// It handles flushing, sequence assignment, WAL writes, and memtable updates.
+// Returns an error if any step fails.
+func (d *DB) processBatch(batch []*writeRequest) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Check if flush needed (synchronous, under lock)
+	if d.memtable.Len() >= d.Opts.MemtableFlushThreshold {
+		if err := d.flushMemtable(); err != nil {
+			return err
+		}
+	}
+
+	// Assign sequence numbers to all entries in batch
+	entries := make([]*common.Entry, 0, len(batch))
+	for _, req := range batch {
+		d.nextSeq++
+		req.entry.Seq = d.nextSeq
+		entries = append(entries, req.entry)
+	}
+
+	// Write entire batch to WAL with single sync
+	if err := d.wal.WriteEntry(entries); err != nil {
+		return err
+	}
+
+	// Update memtable
+	for _, req := range batch {
+		switch req.entry.Type {
+		case common.EntryTypePut:
+			d.memtable.Put(req.entry.Key, req.entry.Value)
+		case common.EntryTypeDelete:
+			d.memtable.Delete(req.entry.Key)
+		}
+	}
+
+	return nil
+}
+
 // groupCommitLoop is the main batching coordinator.
 // It runs in a background goroutine, collecting batches of write requests
 // and committing them together with a single WAL sync.
 func (d *DB) groupCommitLoop() {
 	for {
 		batch := d.collectBatch()
-
-		d.mu.Lock()
-
-		// Check if flush needed (synchronous, under lock)
-		if d.memtable.Len() >= d.Opts.MemtableFlushThreshold {
-			if err := d.flushMemtable(); err != nil {
-				// Flush failed - notify all writers and continue
-				d.mu.Unlock()
-				for _, req := range batch {
-					req.resultCh <- err
-				}
-				continue
-			}
-		}
-
-		// Assign sequence numbers to all entries in batch
-		entries := make([]*common.Entry, 0, len(batch))
-		for _, req := range batch {
-			d.nextSeq++
-			req.entry.Seq = d.nextSeq
-			entries = append(entries, req.entry)
-		}
-
-		// Write entire batch to WAL with single sync
-		err := d.wal.WriteEntry(entries)
-
-		// Update memtable if WAL write succeeded
-		if err == nil {
-			for _, req := range batch {
-				switch req.entry.Type {
-				case common.EntryTypePut:
-					d.memtable.Put(req.entry.Key, req.entry.Value)
-				case common.EntryTypeDelete:
-					d.memtable.Delete(req.entry.Key)
-				}
-			}
-		}
-
-		d.mu.Unlock()
+		err := d.processBatch(batch)
 
 		// Notify all writers in batch
 		for _, req := range batch {
