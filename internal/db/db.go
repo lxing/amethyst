@@ -28,7 +28,7 @@ var DefaultOptions = Options{
 	MemtableFlushThreshold: 256,
 	MaxSSTableLevel:        3,
 	MaxBatchSize:           50,
-	BatchTimeout:           100 * time.Microsecond,
+	BatchTimeout:           5 * time.Millisecond,
 }
 
 type Option func(*Options)

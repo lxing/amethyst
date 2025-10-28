@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"strconv"
 	"time"
 
 	"amethyst/internal/common"
 	"amethyst/internal/db"
+	"golang.org/x/sync/errgroup"
 )
 
 const seedIndexKey = "__cli_seed_index__"
@@ -53,28 +53,31 @@ var kvPairs = [][2]string{
 
 func runSeed(engine *db.DB, x int, seedIndex *int) {
 	start := time.Now()
-	count := 0
 	startIndex := *seedIndex
 
-	// Randomize the order of fruits for more realistic workload
-	shuffled := make([][2]string, len(kvPairs))
-	copy(shuffled, kvPairs)
-	rand.Shuffle(len(shuffled), func(i, j int) {
-		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-	})
-
+	// Write concurrently with 26 goroutines (one per key pair)
+	// to leverage group commit batching
+	var g errgroup.Group
 	for i := 0; i < x; i++ {
-		for _, pair := range shuffled {
-			key := fmt.Sprintf("%s%d", pair[0], *seedIndex)
-			value := fmt.Sprintf("%s%d", pair[1], *seedIndex)
-			if err := engine.Put([]byte(key), []byte(value)); err != nil {
-				fmt.Printf("seed error: %v\n", err)
-				continue
-			}
-			count++
+		currentIndex := *seedIndex + i
+		for _, pair := range kvPairs {
+			pair := pair // capture loop variable
+			g.Go(func() error {
+				key := fmt.Sprintf("%s%d", pair[0], currentIndex)
+				value := fmt.Sprintf("%s%d", pair[1], currentIndex)
+				return engine.Put([]byte(key), []byte(value))
+			})
 		}
-		*seedIndex++
 	}
+
+	// Wait for all writes to complete
+	if err := g.Wait(); err != nil {
+		fmt.Printf("seed error: %v\n", err)
+		return
+	}
+
+	*seedIndex += x
+	count := 26 * x
 
 	// Persist seed index to DB
 	if err := engine.Put([]byte(seedIndexKey), []byte(fmt.Sprint(*seedIndex))); err != nil {
