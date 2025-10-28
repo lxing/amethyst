@@ -9,12 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func cleanupDB(t *testing.T) {
+	t.Helper()
+	os.RemoveAll("wal")
+	os.RemoveAll("sstable")
+	os.Remove("MANIFEST")
+	os.Remove("MANIFEST.tmp")
+}
+
 func TestWALRotation(t *testing.T) {
-	// Clean up
-	defer os.RemoveAll("wal")
-	defer os.RemoveAll("sstable")
-	defer os.Remove("MANIFEST")
-	defer os.Remove("MANIFEST.tmp")
+	defer cleanupDB(t)
 
 	// Create DB with low memtable flush threshold
 	d, err := db.Open(db.WithMemtableFlushThreshold(5))
@@ -59,11 +63,7 @@ func TestWALRotation(t *testing.T) {
 }
 
 func TestSSTableReadAfterFlush(t *testing.T) {
-	// Clean up
-	defer os.RemoveAll("wal")
-	defer os.RemoveAll("sstable")
-	defer os.Remove("MANIFEST")
-	defer os.Remove("MANIFEST.tmp")
+	defer cleanupDB(t)
 
 	// Create DB with low memtable flush threshold to trigger flush
 	d, err := db.Open(db.WithMemtableFlushThreshold(3))
@@ -113,11 +113,7 @@ func TestSSTableReadAfterFlush(t *testing.T) {
 }
 
 func TestSSTableWithDeletes(t *testing.T) {
-	// Clean up
-	defer os.RemoveAll("wal")
-	defer os.RemoveAll("sstable")
-	defer os.Remove("MANIFEST")
-	defer os.Remove("MANIFEST.tmp")
+	defer cleanupDB(t)
 
 	// Create DB
 	d, err := db.Open(db.WithMemtableFlushThreshold(5))
@@ -148,4 +144,50 @@ func TestSSTableWithDeletes(t *testing.T) {
 	value, err := d.Get([]byte("k0"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("v0"), value)
+}
+
+func TestL0IterationOrder(t *testing.T) {
+	defer cleanupDB(t)
+
+	// Create DB with threshold of 2 entries to trigger multiple L0 flushes
+	d, err := db.Open(db.WithMemtableFlushThreshold(2))
+	require.NoError(t, err)
+
+	// Write key "apple" with value "v1", then flush
+	err = d.Put([]byte("apple"), []byte("v1"))
+	require.NoError(t, err)
+	err = d.Put([]byte("banana"), []byte("filler"))
+	require.NoError(t, err)
+
+	// This triggers flush, creating 0.sst with apple=v1
+	err = d.Put([]byte("cherry"), []byte("filler2"))
+	require.NoError(t, err)
+
+	// Verify 0.sst exists
+	_, err = os.Stat("sstable/0/0.sst")
+	require.NoError(t, err, "First flush should create 0.sst")
+
+	// Write key "apple" again with NEW value "v2", then flush
+	err = d.Put([]byte("apple"), []byte("v2"))
+	require.NoError(t, err)
+	err = d.Put([]byte("date"), []byte("filler3"))
+	require.NoError(t, err)
+
+	// This triggers second flush, creating 1.sst with apple=v2
+	err = d.Put([]byte("elderberry"), []byte("filler4"))
+	require.NoError(t, err)
+
+	// Verify 1.sst exists
+	_, err = os.Stat("sstable/0/1.sst")
+	require.NoError(t, err, "Second flush should create 1.sst")
+
+	// Now we have:
+	//   L0: [0.sst, 1.sst]  (0=older, 1=newer)
+	//   0.sst contains: apple=v1
+	//   1.sst contains: apple=v2
+
+	// Get should return NEWEST value (v2), not oldest (v1)
+	value, err := d.Get([]byte("apple"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("v2"), value, "Should return newest version from 1.sst, not stale version from 0.sst")
 }

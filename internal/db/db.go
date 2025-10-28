@@ -243,11 +243,23 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	version := d.manifest.Current()
 	for level, fileNos := range version.Levels {
 		common.Logf("get key=%q: checking L%d (%d files)\n", string(key), level, len(fileNos))
+
+		// L0 has overlapping ranges, check newest to oldest
+		// L1+ are non-overlapping, order doesn't matter (for now)
+		files := fileNos
+		if level == 0 {
+			// Reverse iteration for L0 to check newest files first
+			files = make([]common.FileNo, len(fileNos))
+			for i, fileNo := range fileNos {
+				files[len(fileNos)-1-i] = fileNo
+			}
+		}
+
 		// TODO: Optimize lookup for L1+
 		// L0 files have overlapping ranges, so we must check all files.
 		// L1+ files are non-overlapping within a level, so we can binary search
 		// by key range to find the single file that might contain the key.
-		for _, fileNo := range fileNos {
+		for _, fileNo := range files {
 			table, err := d.manifest.GetTable(fileNo, level)
 			if err != nil {
 				continue
