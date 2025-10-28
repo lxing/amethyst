@@ -296,30 +296,33 @@ func (d *DB) flushMemtable() error {
 	v := d.manifest.Current()
 	newWALNum := v.NextWALNumber
 
-	// 1. Close old WAL (no more writes needed)
+	// 1. Get WAL entry count before closing (for logging)
+	walEntries := d.wal.Len()
+
+	// 2. Close old WAL (no more writes needed)
 	d.wal.Close()
 
-	// 2. Create new WAL file
+	// 3. Create new WAL file
 	newWALPath := common.WALPath(newWALNum)
 	newWAL, err := wal.CreateWAL(newWALPath)
 	if err != nil {
 		return err
 	}
 
-	// 3. Write memtable to SSTable
-	if err := d.writeSSTable(); err != nil {
+	// 4. Write memtable to SSTable
+	if err := d.writeSSTable(walEntries); err != nil {
 		return err
 	}
 
-	// 4. Update manifest (atomic commit point)
+	// 5. Update manifest (atomic commit point)
 	d.manifest.SetWAL(newWALNum)
 
-	// 5. Persist manifest to disk (makes new files visible)
+	// 6. Persist manifest to disk (makes new files visible)
 	if err := d.manifest.Flush(); err != nil {
 		return err
 	}
 
-	// 6. Swap to new WAL and new memtable
+	// 7. Swap to new WAL and new memtable
 	d.wal = newWAL
 	d.memtable = memtable.NewMapMemtable()
 
@@ -328,7 +331,7 @@ func (d *DB) flushMemtable() error {
 
 // writeSSTable writes the current memtable to an SSTable file.
 // Must be called with d.mu held.
-func (d *DB) writeSSTable() error {
+func (d *DB) writeSSTable(walEntries int) error {
 	start := time.Now()
 
 	// Get next SSTable number from manifest
@@ -370,7 +373,7 @@ func (d *DB) writeSSTable() error {
 	}
 	d.manifest.Apply(edit)
 
-	common.LogDuration(start, "flushed wal to %d.sst", fileNo)
+	common.LogDuration(start, "flushed %d wal entries to %d.sst", walEntries, fileNo)
 	return nil
 }
 
