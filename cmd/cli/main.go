@@ -14,6 +14,18 @@ import (
 	"amethyst/internal/wal"
 )
 
+func printHelp() {
+	fmt.Println("commands:")
+	fmt.Println("  put <key> <value>  - write a key-value pair")
+	fmt.Println("  get <key>          - read a value")
+	fmt.Println("  delete <key>       - delete a key")
+	fmt.Println("  seed <x>           - load 26*x fruit/vegetable pairs")
+	fmt.Println("  inspect <file>     - inspect .log or .sst file")
+	fmt.Println("  help               - show this help")
+	fmt.Println("  exit, quit         - exit the program")
+	fmt.Println()
+}
+
 var kvPairs = [][2]string{
 	{"apple", "artichoke"},
 	{"banana", "broccoli"},
@@ -55,7 +67,8 @@ func main() {
 
 	fmt.Println("adb - amethyst database")
 	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", walThreshold, maxSSTableLevel)
-	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | seed <x> | inspect <file> | exit")
+	fmt.Println()
+	printHelp()
 
 	// Load seed index from DB
 	seedIndex := 0
@@ -149,10 +162,13 @@ func main() {
 				continue
 			}
 			inspectFile(parts[1])
+		case "help":
+			printHelp()
 		case "exit", "quit":
 			return
 		default:
 			fmt.Println("unknown command")
+			printHelp()
 		}
 	}
 
