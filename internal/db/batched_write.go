@@ -12,9 +12,9 @@ type writeRequest struct {
 
 // collectBatch collects a batch of write requests from the channel.
 // It blocks waiting for the first request, then greedily collects
-// additional requests that are immediately available (up to maxBatchSize).
+// additional requests that are immediately available (up to MaxBatchSize).
 func (d *DB) collectBatch() []*writeRequest {
-	const maxBatchSize = 50
+	maxBatchSize := d.Opts.MaxBatchSize
 
 	batch := make([]*writeRequest, 0, maxBatchSize)
 

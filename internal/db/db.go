@@ -20,11 +20,13 @@ var ErrNotFound = errors.New("key not found")
 type Options struct {
 	MemtableFlushThreshold int
 	MaxSSTableLevel        int
+	MaxBatchSize           int
 }
 
 var DefaultOptions = Options{
 	MemtableFlushThreshold: 256,
 	MaxSSTableLevel:        3,
+	MaxBatchSize:           50,
 }
 
 type Option func(*Options)
@@ -38,6 +40,12 @@ func WithMemtableFlushThreshold(n int) Option {
 func WithMaxSSTableLevel(n int) Option {
 	return func(o *Options) {
 		o.MaxSSTableLevel = n
+	}
+}
+
+func WithMaxBatchSize(n int) Option {
+	return func(o *Options) {
+		o.MaxBatchSize = n
 	}
 }
 
