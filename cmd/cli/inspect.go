@@ -235,7 +235,7 @@ func renderBoxRow(label string, boxes [][]string, width int) {
 }
 
 func inspectAll(engine *db.DB) {
-	const boxWidth = 12
+	const boxWidth = 18
 
 	version := engine.Manifest().Current()
 
@@ -279,8 +279,8 @@ func inspectAll(engine *db.DB) {
 			boxes = append(boxes, []string{
 				fmt.Sprintf("%d.sst", fm.FileNo),
 				fmt.Sprintf("%d entries", entryCount),
-				fmt.Sprintf("a:%s", firstKey),
-				fmt.Sprintf("z:%s", lastKey),
+				firstKey,
+				lastKey,
 			})
 
 			table.Close()
