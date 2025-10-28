@@ -1,6 +1,0 @@
-#!/bin/bash
-# adb wrapper - compiles and runs the CLI
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$SCRIPT_DIR" || exit 1
-exec go run "$PROJECT_DIR/cmd/cli" "$@"
