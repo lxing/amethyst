@@ -1,6 +1,8 @@
 package db
 
 import (
+	"time"
+
 	"amethyst/internal/common"
 )
 
@@ -8,32 +10,6 @@ import (
 type writeRequest struct {
 	entry    *common.Entry
 	resultCh chan error
-}
-
-// collectBatch collects a batch of write requests from the channel.
-// It blocks waiting for the first request, then greedily collects
-// additional requests that are immediately available (up to MaxBatchSize).
-func (d *DB) collectBatch() []*writeRequest {
-	maxBatchSize := d.Opts.MaxBatchSize
-
-	batch := make([]*writeRequest, 0, maxBatchSize)
-
-	// Block waiting for first request
-	first := <-d.writeChan
-	batch = append(batch, first)
-
-	// Collect more requests that are immediately available
-	for len(batch) < maxBatchSize {
-		select {
-		case req := <-d.writeChan:
-			batch = append(batch, req)
-		default:
-			// No more immediately available
-			return batch
-		}
-	}
-
-	return batch
 }
 
 // processBatch processes a batch of write requests under the DB lock.
@@ -80,8 +56,42 @@ func (d *DB) processBatch(batch []*writeRequest) error {
 // It runs in a background goroutine, collecting batches of write requests
 // and committing them together with a single WAL sync.
 func (d *DB) groupCommitLoop() {
+	maxBatchSize := d.Opts.MaxBatchSize
+	batchTimeout := d.Opts.BatchTimeout
+	timer := time.NewTimer(batchTimeout)
+	defer timer.Stop()
+
 	for {
-		batch := d.collectBatch()
+		batch := make([]*writeRequest, 0, maxBatchSize)
+
+		// Block waiting for first request
+		first := <-d.writeChan
+		batch = append(batch, first)
+
+		// Reset timer to allow more requests to accumulate
+		timer.Reset(batchTimeout)
+
+		// Collect more requests until timeout or batch full
+	collectLoop:
+		for len(batch) < maxBatchSize {
+			select {
+			case req := <-d.writeChan:
+				batch = append(batch, req)
+			case <-timer.C:
+				// Timeout reached, process what we have
+				break collectLoop
+			}
+		}
+
+		// Stop timer if it hasn't fired yet
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+
+		// Process the batch
 		err := d.processBatch(batch)
 
 		// Notify all writers in batch

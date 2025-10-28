@@ -21,12 +21,14 @@ type Options struct {
 	MemtableFlushThreshold int
 	MaxSSTableLevel        int
 	MaxBatchSize           int
+	BatchTimeout           time.Duration
 }
 
 var DefaultOptions = Options{
 	MemtableFlushThreshold: 256,
 	MaxSSTableLevel:        3,
 	MaxBatchSize:           50,
+	BatchTimeout:           100 * time.Microsecond,
 }
 
 type Option func(*Options)
@@ -46,6 +48,12 @@ func WithMaxSSTableLevel(n int) Option {
 func WithMaxBatchSize(n int) Option {
 	return func(o *Options) {
 		o.MaxBatchSize = n
+	}
+}
+
+func WithBatchTimeout(d time.Duration) Option {
+	return func(o *Options) {
+		o.BatchTimeout = d
 	}
 }
 
