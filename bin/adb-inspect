@@ -1,0 +1,3 @@
+#!/bin/bash
+# adb-inspect wrapper - compiles and runs the inspection tool
+exec go run ./cmd/inspect-standalone "$@"

@@ -1,0 +1,3 @@
+#!/bin/bash
+# adb wrapper - compiles and runs the CLI
+exec go run ./cmd/cli "$@"

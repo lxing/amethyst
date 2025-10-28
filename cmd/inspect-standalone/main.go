@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"amethyst/internal/block_cache"
 	"amethyst/internal/common"
 	"amethyst/internal/sstable"
 	"amethyst/internal/wal"
@@ -78,8 +77,7 @@ func inspectSSTable(path string) {
 		os.Exit(1)
 	}
 
-	blockCache := block_cache.NewBlockCache()
-	table, err := sstable.OpenSSTable(path, fileNo, blockCache)
+	table, err := sstable.OpenSSTable(path, fileNo, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open SSTable: %v\n", err)
 		os.Exit(1)

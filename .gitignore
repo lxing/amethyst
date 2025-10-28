@@ -2,7 +2,6 @@
 go.mod
 .gocache/
 
-# Ignore binaries and runtime data
-bin/
+# Ignore runtime data
 wal/
 sstable/

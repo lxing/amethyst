@@ -4,10 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"amethyst/internal/common"
 	"amethyst/internal/db"
+	"amethyst/internal/sstable"
+	"amethyst/internal/wal"
 )
 
 var kvPairs = [][2]string{
@@ -51,7 +55,7 @@ func main() {
 
 	fmt.Println("adb - amethyst database")
 	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", walThreshold, maxSSTableLevel)
-	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | seed <x> | exit")
+	fmt.Println("commands: put <key> <value> | get <key> | delete <key> | seed <x> | inspect <file> | exit")
 
 	// Load seed index from DB
 	seedIndex := 0
@@ -139,6 +143,12 @@ func main() {
 			}
 
 			fmt.Printf("seeded %d entries (26 * %d, index %d-%d)\n", count, x, startIndex, seedIndex-1)
+		case "inspect":
+			if len(parts) != 2 {
+				fmt.Println("usage: inspect <file.log|file.sst>")
+				continue
+			}
+			inspectFile(parts[1])
 		case "exit", "quit":
 			return
 		default:
@@ -149,4 +159,84 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "input error: %v\n", err)
 	}
+}
+
+func inspectFile(path string) {
+	ext := strings.ToLower(filepath.Ext(path))
+
+	switch ext {
+	case ".log":
+		inspectWAL(path)
+	case ".sst":
+		inspectSSTable(path)
+	default:
+		fmt.Printf("unknown file type: %s (expected .log or .sst)\n", ext)
+	}
+}
+
+func inspectWAL(path string) {
+	fmt.Printf("Inspecting WAL: %s\n", path)
+	fmt.Println()
+
+	w, err := wal.NewWAL(path)
+	if err != nil {
+		fmt.Printf("failed to open WAL: %v\n", err)
+		return
+	}
+	defer w.Close()
+
+	iter, err := w.Iterator()
+	if err != nil {
+		fmt.Printf("failed to create iterator: %v\n", err)
+		return
+	}
+
+	count := 0
+	for {
+		entry, err := iter.Next()
+		if err != nil {
+			fmt.Printf("error reading entry: %v\n", err)
+			return
+		}
+		if entry == nil {
+			break
+		}
+		count++
+	}
+
+	fmt.Printf("Total entries: %d\n", count)
+	fmt.Println()
+}
+
+func inspectSSTable(path string) {
+	fmt.Printf("Inspecting SSTable: %s\n", path)
+	fmt.Println()
+
+	// Extract file number from path (e.g., "sstable/0/123.sst" -> 123)
+	filename := filepath.Base(path)
+	fileNoStr := strings.TrimSuffix(filename, ".sst")
+	var fileNo common.FileNo
+	if _, err := fmt.Sscanf(fileNoStr, "%d", &fileNo); err != nil {
+		fmt.Printf("failed to parse file number from %s: %v\n", filename, err)
+		return
+	}
+
+	table, err := sstable.OpenSSTable(path, fileNo, nil)
+	if err != nil {
+		fmt.Printf("failed to open SSTable: %v\n", err)
+		return
+	}
+	defer table.Close()
+
+	indexEntries := table.GetIndex()
+
+	fmt.Printf("Total blocks: %d\n", len(indexEntries))
+	fmt.Println()
+	fmt.Println("Index entries (first key of each block):")
+	fmt.Println()
+
+	for i, entry := range indexEntries {
+		fmt.Printf("Block %d: offset=%d key=%q\n", i, entry.BlockOffset, string(entry.Key))
+	}
+	fmt.Println()
 }
