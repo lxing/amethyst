@@ -12,27 +12,35 @@ import (
 	"amethyst/internal/wal"
 )
 
-// inspectCompleter provides tab completion for inspect command filenames
-// This is the global completer for liner, but it only completes for "inspect " commands
+// fileCompleter provides tab completion for inspect and dump commands
+// This is the global completer for liner
 // Runs on every tab press, using ReadDir for performance
-func inspectCompleter(line string) []string {
-	// Only complete for inspect command
-	if !strings.HasPrefix(line, "inspect ") {
+func fileCompleter(line string) []string {
+	var prefix, partial string
+
+	// Check which command we're completing for
+	if strings.HasPrefix(line, "inspect ") {
+		prefix = "inspect "
+		partial = strings.TrimPrefix(line, prefix)
+	} else if strings.HasPrefix(line, "dump ") {
+		prefix = "dump "
+		partial = strings.TrimPrefix(line, prefix)
+	} else {
 		return nil
 	}
 
-	// Get the partial path after "inspect "
-	partial := strings.TrimPrefix(line, "inspect ")
-
 	var matches []string
 
-	// Case 1: Starting completion - suggest top-level directories
+	// Case 1: Starting completion - suggest memtable and top-level directories
 	if partial == "" || !strings.Contains(partial, "/") {
+		if strings.HasPrefix("memtable", partial) {
+			matches = append(matches, prefix+"memtable")
+		}
 		if strings.HasPrefix("wal/", partial) {
-			matches = append(matches, "inspect wal/")
+			matches = append(matches, prefix+"wal/")
 		}
 		if strings.HasPrefix("sstable/", partial) {
-			matches = append(matches, "inspect sstable/")
+			matches = append(matches, prefix+"sstable/")
 		}
 		return matches
 	}
@@ -47,7 +55,7 @@ func inspectCompleter(line string) []string {
 			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
 				fullPath := "wal/" + entry.Name()
 				if strings.HasPrefix(fullPath, partial) {
-					matches = append(matches, "inspect "+fullPath)
+					matches = append(matches, prefix+fullPath)
 				}
 			}
 		}
@@ -68,7 +76,7 @@ func inspectCompleter(line string) []string {
 				if entry.IsDir() {
 					levelDir := "sstable/" + entry.Name() + "/"
 					if strings.HasPrefix(levelDir, partial) {
-						matches = append(matches, "inspect "+levelDir)
+						matches = append(matches, prefix+levelDir)
 					}
 				}
 			}
@@ -87,7 +95,7 @@ func inspectCompleter(line string) []string {
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sst") {
 					fullPath := levelDir + "/" + entry.Name()
 					if strings.HasPrefix(fullPath, partial) {
-						matches = append(matches, "inspect "+fullPath)
+						matches = append(matches, prefix+fullPath)
 					}
 				}
 			}

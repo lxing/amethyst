@@ -23,6 +23,7 @@ func printHelp() {
 	fmt.Println("  delete  <key>          - delete a key")
 	fmt.Println("  seed    <x>            - load 26*x fruit/vegetable pairs")
 	fmt.Println("  inspect <memtable|file.log|file.sst> - inspect memtable or file")
+	fmt.Println("  dump    <memtable|file.log|file.sst> - dump all entries")
 	fmt.Println("  clear                  - delete all .log and .sst files")
 	fmt.Println("  help                   - show this help")
 	fmt.Println("  exit, quit             - exit the program")
@@ -72,7 +73,7 @@ func main() {
 	defer line.Close()
 
 	line.SetCtrlCAborts(true)
-	line.SetCompleter(inspectCompleter)
+	line.SetCompleter(fileCompleter)
 
 	// Load history from file
 	history, err := newHistory()
@@ -165,6 +166,16 @@ func main() {
 				inspectMemtable(ctx.engine)
 			} else {
 				inspectFile(parts[1])
+			}
+		case "dump":
+			if len(parts) != 2 {
+				fmt.Println("usage: dump <memtable|file.log|file.sst>")
+				continue
+			}
+			if parts[1] == "memtable" {
+				dumpMemtable(ctx.engine)
+			} else {
+				dumpFile(parts[1])
 			}
 		case "clear":
 			if err := clearDatabase(ctx); err != nil {

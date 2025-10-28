@@ -10,8 +10,10 @@ import (
 	"amethyst/internal/db"
 )
 
+const seedIndexKey = "__cli_seed_index__"
+
 func loadSeedIndex(engine *db.DB) int {
-	if val, err := engine.Get([]byte("__cli_seed_index__")); err == nil {
+	if val, err := engine.Get([]byte(seedIndexKey)); err == nil {
 		if idx, err := strconv.Atoi(string(val)); err == nil {
 			fmt.Printf("resumed seed index from %d\n", idx)
 			return idx
@@ -75,7 +77,7 @@ func runSeed(engine *db.DB, x int, seedIndex *int) {
 	*seedIndex += x
 
 	// Persist seed index to DB
-	if err := engine.Put([]byte("__cli_seed_index__"), []byte(fmt.Sprint(*seedIndex))); err != nil {
+	if err := engine.Put([]byte(seedIndexKey), []byte(fmt.Sprint(*seedIndex))); err != nil {
 		fmt.Printf("warning: failed to persist seed index: %v\n", err)
 	}
 
