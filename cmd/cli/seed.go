@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"amethyst/internal/common"
@@ -10,16 +12,22 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const seedIndexKey = "__cli_seed_index__"
+const seedIndexFile = "CLI_SEED_INDEX"
 
-func loadSeedIndex(engine *db.DB) int {
-	if val, err := engine.Get([]byte(seedIndexKey)); err == nil {
-		if idx, err := strconv.Atoi(string(val)); err == nil {
-			fmt.Printf("resumed seed index from %d\n", idx)
-			return idx
-		}
+func loadSeedIndex() int {
+	data, err := os.ReadFile(seedIndexFile)
+	if err != nil {
+		return 0
 	}
-	return 0
+	idx, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0
+	}
+	return idx
+}
+
+func saveSeedIndex(idx int) error {
+	return os.WriteFile(seedIndexFile, []byte(fmt.Sprint(idx)), 0644)
 }
 
 var kvPairs = [][2]string{
@@ -79,8 +87,8 @@ func runSeed(engine *db.DB, x int, seedIndex *int) {
 	*seedIndex += x
 	count := 26 * x
 
-	// Persist seed index to DB
-	if err := engine.Put([]byte(seedIndexKey), []byte(fmt.Sprint(*seedIndex))); err != nil {
+	// Persist seed index to file
+	if err := saveSeedIndex(*seedIndex); err != nil {
 		fmt.Printf("warning: failed to persist seed index: %v\n", err)
 	}
 

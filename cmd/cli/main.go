@@ -45,6 +45,12 @@ func clearDatabase(ctx *cmdContext) error {
 	os.Remove("MANIFEST")
 	os.Remove("MANIFEST.tmp")
 
+	// Reset seed index to 0
+	ctx.seedIndex = 0
+	if err := saveSeedIndex(0); err != nil {
+		fmt.Printf("warning: failed to reset seed index: %v\n", err)
+	}
+
 	// Reopen engine (will recreate everything)
 	newEngine, err := db.Open()
 	if err != nil {
@@ -52,18 +58,26 @@ func clearDatabase(ctx *cmdContext) error {
 	}
 
 	ctx.engine = newEngine
-	ctx.seedIndex = 0
 
 	fmt.Println("cleared database")
 	return nil
 }
 
 func main() {
+	// Disable logging initially to prevent noise during startup
+	common.LoggingEnabled = false
+
 	engine, err := db.Open()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Load seed index from file
+	seedIndex := loadSeedIndex()
+
+	// Enable logging after startup
+	common.LoggingEnabled = true
 
 	fmt.Println("adb - amethyst database")
 	fmt.Printf("config: memtable_flush_threshold=%d max_levels=%d\n", engine.Opts.MemtableFlushThreshold, engine.Opts.MaxSSTableLevel)
@@ -71,7 +85,10 @@ func main() {
 	printHelp()
 
 	// Initialize context
-	ctx := &cmdContext{engine: engine}
+	ctx := &cmdContext{
+		engine:    engine,
+		seedIndex: seedIndex,
+	}
 
 	// Initialize liner for command line editing
 	line := liner.NewLiner()
@@ -92,9 +109,6 @@ func main() {
 	for _, cmd := range history.commands {
 		line.AppendHistory(cmd)
 	}
-
-	// Load seed index from DB
-	ctx.seedIndex = loadSeedIndex(ctx.engine)
 
 	for {
 		input, err := line.Prompt("> ")
