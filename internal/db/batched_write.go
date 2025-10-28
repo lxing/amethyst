@@ -59,35 +59,26 @@ func (d *DB) groupCommitLoop() {
 	maxBatchSize := d.Opts.MaxBatchSize
 	batchTimeout := d.Opts.BatchTimeout
 	timer := time.NewTimer(batchTimeout)
-	defer timer.Stop()
 
 	for {
 		batch := make([]*writeRequest, 0, maxBatchSize)
 
-		// Block waiting for first request
-		first := <-d.writeChan
-		batch = append(batch, first)
-
-		// Reset timer to allow more requests to accumulate
+		// Collect requests until timeout or batch full
+		// Go 1.23+ allows Reset on timers in any state
 		timer.Reset(batchTimeout)
-
-		// Collect more requests until timeout or batch full
-	collectLoop:
-		for len(batch) < maxBatchSize {
-			select {
-			case req := <-d.writeChan:
-				batch = append(batch, req)
-			case <-timer.C:
-				// Timeout reached, process what we have
-				break collectLoop
-			}
-		}
-
-		// Stop timer if it hasn't fired yet
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
+		done := false
+		for len(batch) < maxBatchSize && !done {
+			if len(batch) == 0 {
+				// Block waiting for first request
+				batch = append(batch, <-d.writeChan)
+			} else {
+				// Have at least one request, collect more with timeout
+				select {
+				case req := <-d.writeChan:
+					batch = append(batch, req)
+				case <-timer.C:
+					done = true
+				}
 			}
 		}
 
