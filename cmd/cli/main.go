@@ -11,6 +11,11 @@ import (
 	"github.com/peterh/liner"
 )
 
+type cmdContext struct {
+	engine    *db.DB
+	seedIndex int
+}
+
 func printHelp() {
 	fmt.Println("commands:")
 	fmt.Println("  put     <key> <value>  - write a key-value pair")
@@ -18,9 +23,33 @@ func printHelp() {
 	fmt.Println("  delete  <key>          - delete a key")
 	fmt.Println("  seed    <x>            - load 26*x fruit/vegetable pairs")
 	fmt.Println("  inspect <file>         - inspect .log or .sst file")
+	fmt.Println("  clear                  - delete all .log and .sst files")
 	fmt.Println("  help                   - show this help")
 	fmt.Println("  exit, quit             - exit the program")
 	fmt.Println()
+}
+
+func clearDatabase(ctx *cmdContext) error {
+	// Close the database to stop all operations
+	if err := ctx.engine.Close(); err != nil {
+		return fmt.Errorf("failed to close database: %w", err)
+	}
+
+	// Remove wal/ and sstable/ directories entirely
+	os.RemoveAll("wal")
+	os.RemoveAll("sstable")
+
+	// Reopen engine (will recreate directories)
+	newEngine, err := db.Open()
+	if err != nil {
+		return fmt.Errorf("failed to reopen database: %w", err)
+	}
+
+	ctx.engine = newEngine
+	ctx.seedIndex = 0
+
+	fmt.Println("cleared database")
+	return nil
 }
 
 func main() {
@@ -34,6 +63,9 @@ func main() {
 	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", engine.Opts.WALThreshold, engine.Opts.MaxSSTableLevel)
 	fmt.Println()
 	printHelp()
+
+	// Initialize context
+	ctx := &cmdContext{engine: engine}
 
 	// Initialize liner for command line editing
 	line := liner.NewLiner()
@@ -56,11 +88,10 @@ func main() {
 	}
 
 	// Load seed index from DB
-	seedIndex := 0
-	if val, err := engine.Get([]byte("__cli_seed_index__")); err == nil {
+	if val, err := ctx.engine.Get([]byte("__cli_seed_index__")); err == nil {
 		if idx, err := strconv.Atoi(string(val)); err == nil {
-			seedIndex = idx
-			fmt.Printf("resumed seed index from %d\n", seedIndex)
+			ctx.seedIndex = idx
+			fmt.Printf("resumed seed index from %d\n", ctx.seedIndex)
 		}
 	}
 
@@ -93,7 +124,7 @@ func main() {
 				fmt.Println("usage: put <key> <value>")
 				continue
 			}
-			if err := engine.Put([]byte(parts[1]), []byte(parts[2])); err != nil {
+			if err := ctx.engine.Put([]byte(parts[1]), []byte(parts[2])); err != nil {
 				fmt.Printf("put error: %v\n", err)
 				continue
 			}
@@ -103,7 +134,7 @@ func main() {
 				fmt.Println("usage: get <key>")
 				continue
 			}
-			value, err := engine.Get([]byte(parts[1]))
+			value, err := ctx.engine.Get([]byte(parts[1]))
 			if err != nil {
 				fmt.Printf("get error: %v\n", err)
 				continue
@@ -114,7 +145,7 @@ func main() {
 				fmt.Println("usage: delete <key>")
 				continue
 			}
-			if err := engine.Delete([]byte(parts[1])); err != nil {
+			if err := ctx.engine.Delete([]byte(parts[1])); err != nil {
 				fmt.Printf("delete error: %v\n", err)
 				continue
 			}
@@ -129,13 +160,17 @@ func main() {
 				fmt.Println("seed: x must be a positive integer")
 				continue
 			}
-			runSeed(engine, x, &seedIndex)
+			runSeed(ctx.engine, x, &ctx.seedIndex)
 		case "inspect":
 			if len(parts) != 2 {
 				fmt.Println("usage: inspect <file.log|file.sst>")
 				continue
 			}
 			inspectFile(parts[1])
+		case "clear":
+			if err := clearDatabase(ctx); err != nil {
+				fmt.Printf("clear error: %v\n", err)
+			}
 		case "help":
 			printHelp()
 		case "exit", "quit":

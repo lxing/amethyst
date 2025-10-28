@@ -264,3 +264,16 @@ func (d *DB) writeSSTable() error {
 	return nil
 }
 
+// Close stops all database operations and releases resources.
+// Currently a stub for future cleanup (closing WAL, flushing buffers, etc.)
+func (d *DB) Close() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// TODO: Close WAL
+	// TODO: Close manifest (which closes table cache)
+	// TODO: Flush any pending writes
+
+	return nil
+}
+
