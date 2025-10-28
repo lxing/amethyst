@@ -294,27 +294,63 @@ func (s *sstableImpl) Close() error {
 
 // Iterator returns an iterator that sequentially scans all entries in the SSTable.
 func (s *sstableImpl) Iterator() common.EntryIterator {
-	// Create a SectionReader for the data region [0, FilterOffset)
-	section := io.NewSectionReader(s.file, 0, int64(s.footer.FilterOffset))
+	// Open a separate file handle for iteration
+	f, err := os.Open(s.file.Name())
+	if err != nil {
+		// Return an iterator that immediately fails
+		return &sstableIterator{err: err}
+	}
+
 	return &sstableIterator{
-		reader: bufio.NewReader(section),
+		file:   f,
+		reader: bufio.NewReader(io.LimitReader(f, int64(s.footer.FilterOffset))),
 	}
 }
 
 // sstableIterator provides sequential access to all entries in an SSTable.
 type sstableIterator struct {
+	file   *os.File
 	reader *bufio.Reader
+	err    error // Initialization error
 }
 
 var _ common.EntryIterator = (*sstableIterator)(nil)
 
 // Next returns the next entry in the SSTable.
 func (it *sstableIterator) Next() (*common.Entry, error) {
+	// Check for initialization error
+	if it.err != nil {
+		return nil, it.err
+	}
+
+	if it.file == nil {
+		return nil, nil // Already closed
+	}
+
 	// Read next entry sequentially
 	entry, err := common.ReadEntry(it.reader)
 	if err != nil {
 		// EOF or read error
+		it.Close()
 		return nil, err
 	}
+
+	if entry == nil {
+		// End of entries
+		it.Close()
+		return nil, nil
+	}
+
 	return entry, nil
+}
+
+// Close releases the underlying file handle.
+func (it *sstableIterator) Close() error {
+	if it.file == nil {
+		return nil
+	}
+	err := it.file.Close()
+	it.file = nil
+	it.reader = nil
+	return err
 }

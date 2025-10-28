@@ -17,13 +17,44 @@ type walImpl struct {
 
 var _ WAL = (*walImpl)(nil)
 
+// countEntries counts the number of entries in a WAL file.
+func countEntries(path string) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	reader := bufio.NewReader(f)
+	count := 0
+	for {
+		entry, err := common.ReadEntry(reader)
+		if err != nil {
+			return 0, err
+		}
+		if entry == nil {
+			break
+		}
+		count++
+	}
+	return count, nil
+}
+
 // OpenWAL opens an existing WAL file for appending (used during recovery).
 func OpenWAL(path string) (*walImpl, error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, err
 	}
-	return &walImpl{file: f, path: path}, nil
+
+	// Count existing entries in the file
+	count, err := countEntries(path)
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+
+	return &walImpl{file: f, path: path, entryCount: count}, nil
 }
 
 // CreateWAL creates a new WAL file, truncating if it exists (used during rotation).
