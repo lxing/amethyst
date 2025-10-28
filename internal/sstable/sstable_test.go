@@ -190,3 +190,57 @@ func TestSSTableReaderTombstone(t *testing.T) {
 	require.Equal(t, common.EntryTypeDelete, entry.Type)
 	require.Equal(t, uint64(2), entry.Seq)
 }
+
+func TestSSTableIterator(t *testing.T) {
+	// Create test entries spanning multiple blocks
+	numEntries := block.BLOCK_SIZE*2 + 10
+	entries := make([]*common.Entry, numEntries)
+	for i := 0; i < numEntries; i++ {
+		key := []byte{byte(i / 256), byte(i % 256)}
+		entries[i] = &common.Entry{
+			Type:  common.EntryTypePut,
+			Seq:   uint64(i + 1),
+			Key:   key,
+			Value: []byte{byte(i)},
+		}
+	}
+
+	// Write SSTable to temp file
+	tmpFile := t.TempDir() + "/test_iter.sst"
+	f, err := os.Create(tmpFile)
+	require.NoError(t, err)
+
+	iter := &testIterator{entries: entries}
+	_, err = WriteSSTable(f, iter)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	// Open SSTable for reading
+	reader, err := OpenSSTable(tmpFile, common.FileNo(1), nil)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	// Verify Len() matches
+	require.Equal(t, numEntries, reader.Len())
+
+	// Iterate and verify all entries
+	resultIter := reader.Iterator()
+	count := 0
+	for {
+		entry, err := resultIter.Next()
+		require.NoError(t, err)
+		if entry == nil {
+			break
+		}
+
+		require.Less(t, count, numEntries, "iterator returned more entries than expected")
+		expected := entries[count]
+		require.Equal(t, expected.Type, entry.Type)
+		require.Equal(t, expected.Seq, entry.Seq)
+		require.Equal(t, expected.Key, entry.Key)
+		require.Equal(t, expected.Value, entry.Value)
+		count++
+	}
+
+	require.Equal(t, numEntries, count, "iterator should return all entries")
+}
