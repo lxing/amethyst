@@ -10,6 +10,7 @@ import (
 
 	"amethyst/internal/common"
 	"amethyst/internal/db"
+
 	"github.com/peterh/liner"
 )
 
@@ -20,15 +21,15 @@ type cmdContext struct {
 
 func printHelp() {
 	fmt.Println("commands:")
-	fmt.Println("  put     <key> <value>  - write a key-value pair")
-	fmt.Println("  get     <key>          - read a value")
-	fmt.Println("  delete  <key>          - delete a key")
-	fmt.Println("  seed    <x>            - load 26*x fruit/vegetable pairs")
+	fmt.Println("  put     <key> <value>                    - write a key-value pair")
+	fmt.Println("  get     <key>                            - read a value")
+	fmt.Println("  delete  <key>                            - delete a key")
+	fmt.Println("  seed    <x>                              - load 26*x fruit/vegetable pairs")
 	fmt.Println("  inspect <all|memtable|file.log|file.sst> - inspect database or file")
-	fmt.Println("  dump    <memtable|file.log|file.sst> - dump all entries")
-	fmt.Println("  clear                  - delete all .log and .sst files")
-	fmt.Println("  help                   - show this help")
-	fmt.Println("  exit, quit             - exit the program")
+	fmt.Println("  dump    <memtable|file.log|file.sst>     - dump all entries")
+	fmt.Println("  clear                                    - delete all .log and .sst files")
+	fmt.Println("  help                                     - show this help")
+	fmt.Println("  exit, quit                               - exit the program")
 	fmt.Println()
 }
 
