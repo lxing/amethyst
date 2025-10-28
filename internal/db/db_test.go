@@ -16,8 +16,8 @@ func TestWALRotation(t *testing.T) {
 	defer os.Remove("MANIFEST")
 	defer os.Remove("MANIFEST.tmp")
 
-	// Create DB with low WAL threshold
-	d, err := db.Open(db.WithWALThreshold(5))
+	// Create DB with low memtable flush threshold
+	d, err := db.Open(db.WithMemtableFlushThreshold(5))
 	require.NoError(t, err)
 
 	// Write 4 entries (below threshold)
@@ -65,8 +65,8 @@ func TestSSTableReadAfterFlush(t *testing.T) {
 	defer os.Remove("MANIFEST")
 	defer os.Remove("MANIFEST.tmp")
 
-	// Create DB with low WAL threshold to trigger flush
-	d, err := db.Open(db.WithWALThreshold(3))
+	// Create DB with low memtable flush threshold to trigger flush
+	d, err := db.Open(db.WithMemtableFlushThreshold(3))
 	require.NoError(t, err)
 
 	// Write 3 entries (reaches threshold)
@@ -120,7 +120,7 @@ func TestSSTableWithDeletes(t *testing.T) {
 	defer os.Remove("MANIFEST.tmp")
 
 	// Create DB
-	d, err := db.Open(db.WithWALThreshold(5))
+	d, err := db.Open(db.WithMemtableFlushThreshold(5))
 	require.NoError(t, err)
 
 	// Write and delete in same memtable

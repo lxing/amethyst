@@ -18,20 +18,20 @@ import (
 var ErrNotFound = errors.New("key not found")
 
 type Options struct {
-	WALThreshold    int
-	MaxSSTableLevel int
+	MemtableFlushThreshold int
+	MaxSSTableLevel        int
 }
 
 var DefaultOptions = Options{
-	WALThreshold:    256,
-	MaxSSTableLevel: 3,
+	MemtableFlushThreshold: 256,
+	MaxSSTableLevel:        3,
 }
 
 type Option func(*Options)
 
-func WithWALThreshold(n int) Option {
+func WithMemtableFlushThreshold(n int) Option {
 	return func(o *Options) {
-		o.WALThreshold = n
+		o.MemtableFlushThreshold = n
 	}
 }
 
@@ -172,7 +172,7 @@ func (d *DB) Put(key, value []byte) error {
 	defer d.mu.Unlock()
 
 	// Check if we need to flush memtable
-	if d.wal.Len() >= d.Opts.WALThreshold {
+	if d.memtable.Len() >= d.Opts.MemtableFlushThreshold {
 		if err := d.flushMemtable(); err != nil {
 			return err
 		}
@@ -203,7 +203,7 @@ func (d *DB) Delete(key []byte) error {
 	defer d.mu.Unlock()
 
 	// Check if we need to flush memtable
-	if d.wal.Len() >= d.Opts.WALThreshold {
+	if d.memtable.Len() >= d.Opts.MemtableFlushThreshold {
 		if err := d.flushMemtable(); err != nil {
 			return err
 		}

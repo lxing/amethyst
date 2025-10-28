@@ -63,7 +63,7 @@ func main() {
 	}
 
 	fmt.Println("adb - amethyst database")
-	fmt.Printf("config: wal_flush_size=%d max_levels=%d\n", engine.Opts.WALThreshold, engine.Opts.MaxSSTableLevel)
+	fmt.Printf("config: memtable_flush_threshold=%d max_levels=%d\n", engine.Opts.MemtableFlushThreshold, engine.Opts.MaxSSTableLevel)
 	fmt.Println()
 	printHelp()
 
