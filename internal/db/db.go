@@ -241,17 +241,17 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	}
 
 	version := d.manifest.Current()
-	for level, fileNos := range version.Levels {
-		common.Logf("get key=%q: checking L%d (%d files)\n", string(key), level, len(fileNos))
+	for level, fileMetas := range version.Levels {
+		common.Logf("get key=%q: checking L%d (%d files)\n", string(key), level, len(fileMetas))
 
 		// L0 has overlapping ranges, check newest to oldest
 		// L1+ are non-overlapping, order doesn't matter (for now)
-		files := fileNos
+		files := fileMetas
 		if level == 0 {
 			// Reverse iteration for L0 to check newest files first
-			files = make([]common.FileNo, len(fileNos))
-			for i, fileNo := range fileNos {
-				files[len(fileNos)-1-i] = fileNo
+			files = make([]manifest.FileMetadata, len(fileMetas))
+			for i, fm := range fileMetas {
+				files[len(fileMetas)-1-i] = fm
 			}
 		}
 
@@ -259,15 +259,15 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 		// L0 files have overlapping ranges, so we must check all files.
 		// L1+ files are non-overlapping within a level, so we can binary search
 		// by key range to find the single file that might contain the key.
-		for _, fileNo := range files {
-			table, err := d.manifest.GetTable(fileNo, level)
+		for _, fm := range files {
+			table, err := d.manifest.GetTable(fm.FileNo, level)
 			if err != nil {
 				continue
 			}
 
 			entry, err := table.Get(key)
 			if err == sstable.ErrNotFound {
-				common.Logf("get key=%q: not in L%d/%d.sst\n", string(key), level, fileNo)
+				common.Logf("get key=%q: not in L%d/%d.sst\n", string(key), level, fm.FileNo)
 				continue
 			}
 			if err != nil {
@@ -275,10 +275,10 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 			}
 
 			if entry.Type == common.EntryTypeDelete {
-				common.Logf("get key=%q: found tombstone in L%d/%d.sst\n", string(key), level, fileNo)
+				common.Logf("get key=%q: found tombstone in L%d/%d.sst\n", string(key), level, fm.FileNo)
 				return nil, ErrNotFound
 			}
-			common.Logf("get key=%q: found in L%d/%d.sst\n", string(key), level, fileNo)
+			common.Logf("get key=%q: found in L%d/%d.sst\n", string(key), level, fm.FileNo)
 			return bytes.Clone(entry.Value), nil
 		}
 	}
@@ -343,7 +343,7 @@ func (d *DB) writeSSTable() error {
 	iter := d.memtable.Iterator()
 
 	// Write all entries to SSTable
-	_, err = sstable.WriteSSTable(f, iter)
+	result, err := sstable.WriteSSTable(f, iter)
 	if err != nil {
 		f.Close()
 		return err
@@ -355,8 +355,14 @@ func (d *DB) writeSSTable() error {
 
 	// Update manifest to add new SSTable to L0
 	edit := &manifest.CompactionEdit{
-		AddSSTables: map[int]map[common.FileNo]struct{}{
-			0: {fileNo: {}},
+		AddSSTables: map[int][]manifest.FileMetadata{
+			0: {
+				{
+					FileNo:      fileNo,
+					SmallestKey: result.SmallestKey,
+					LargestKey:  result.LargestKey,
+				},
+			},
 		},
 	}
 	d.manifest.Apply(edit)

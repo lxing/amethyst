@@ -30,25 +30,42 @@ import (
 //                 │     Footer     │  footer: {filterOffset, indexOffset}
 //                 └────────────────┘
 
+// WriteResult contains metadata from writing an SSTable.
+type WriteResult struct {
+	BytesWritten uint64
+	SmallestKey  []byte
+	LargestKey   []byte
+}
+
 // WriteSSTable writes a complete SSTable from a stream of sorted entries.
-// Returns the total number of bytes written.
-func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
+// Returns metadata about the written SSTable.
+func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, error) {
 	var offset uint64
 	var indexEntries []IndexEntry
 	var blockEntryCount int
 	var totalEntryCount uint64
 	var blockStartOffset uint64
 	var firstBlockKey []byte
+	var smallestKey []byte
+	var largestKey []byte
 
 	// Stream data blocks
 	for {
 		entry, err := entries.Next()
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		if entry == nil {
 			break // End of stream
 		}
+
+		// Track smallest key (first entry)
+		if totalEntryCount == 0 {
+			smallestKey = bytes.Clone(entry.Key)
+		}
+
+		// Track largest key (last entry seen)
+		largestKey = bytes.Clone(entry.Key)
 
 		// Start new block: record offset and first key
 		if blockEntryCount == 0 {
@@ -60,7 +77,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 		// Write entry to output
 		n, err := common.WriteEntry(w, entry)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		offset += uint64(n)
 		blockEntryCount++
@@ -96,7 +113,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	index := &Index{Entries: indexEntries}
 	n, err := WriteIndex(w, index)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	offset += uint64(n)
 
@@ -108,11 +125,15 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (uint64, error) {
 	}
 	n, err = WriteFooter(w, footer)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	offset += uint64(n)
 
-	return offset, nil
+	return &WriteResult{
+		BytesWritten: offset,
+		SmallestKey:  smallestKey,
+		LargestKey:   largestKey,
+	}, nil
 }
 
 // sstableImpl provides random access to entries in an SSTable file.

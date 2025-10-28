@@ -11,13 +11,20 @@ import (
 	"amethyst/internal/sstable"
 )
 
+// FileMetadata tracks metadata for a single SSTable file.
+type FileMetadata struct {
+	FileNo      common.FileNo
+	SmallestKey []byte
+	LargestKey  []byte
+}
+
 // Version represents an immutable snapshot of the LSM tree structure.
 type Version struct {
 	// Current WAL being written
 	CurrentWAL common.FileNo
 
 	// Levels[0] = L0 tables, Levels[1] = L1 tables, etc.
-	Levels [][]common.FileNo
+	Levels [][]FileMetadata
 
 	// Next file number to allocate for new WAL
 	NextWALNumber common.FileNo
@@ -58,7 +65,7 @@ type Manifest struct {
 func NewManifest(numLevels int) *Manifest {
 	return &Manifest{
 		current: &Version{
-			Levels: make([][]common.FileNo, numLevels),
+			Levels: make([][]FileMetadata, numLevels),
 		},
 		tableCache: make(map[common.FileNo]sstable.SSTable),
 		blockCache: block_cache.NewBlockCache(),
@@ -93,7 +100,7 @@ func (m *Manifest) SetWAL(num common.FileNo) {
 // CompactionEdit describes an atomic change to the manifest.
 type CompactionEdit struct {
 	// SSTables to add/remove per level
-	AddSSTables    map[int]map[common.FileNo]struct{}
+	AddSSTables    map[int][]FileMetadata
 	DeleteSSTables map[int]map[common.FileNo]struct{}
 }
 
@@ -107,10 +114,10 @@ func (m *Manifest) Apply(edit *CompactionEdit) {
 
 	// Apply SSTable deletions
 	for level, deleteSet := range edit.DeleteSSTables {
-		filtered := make([]common.FileNo, 0, len(newVersion.Levels[level]))
-		for _, f := range newVersion.Levels[level] {
-			if _, deleted := deleteSet[f]; !deleted {
-				filtered = append(filtered, f)
+		filtered := make([]FileMetadata, 0, len(newVersion.Levels[level]))
+		for _, fm := range newVersion.Levels[level] {
+			if _, deleted := deleteSet[fm.FileNo]; !deleted {
+				filtered = append(filtered, fm)
 			}
 		}
 		newVersion.Levels[level] = filtered
@@ -118,11 +125,11 @@ func (m *Manifest) Apply(edit *CompactionEdit) {
 
 	// Apply SSTable additions
 	var maxSSTable common.FileNo
-	for level, addSet := range edit.AddSSTables {
-		for f := range addSet {
-			newVersion.Levels[level] = append(newVersion.Levels[level], f)
-			if f > maxSSTable {
-				maxSSTable = f
+	for level, addList := range edit.AddSSTables {
+		for _, fm := range addList {
+			newVersion.Levels[level] = append(newVersion.Levels[level], fm)
+			if fm.FileNo > maxSSTable {
+				maxSSTable = fm.FileNo
 			}
 		}
 	}
@@ -136,12 +143,12 @@ func (m *Manifest) Apply(edit *CompactionEdit) {
 func (m *Manifest) deepCopy(v *Version) *Version {
 	newVersion := &Version{
 		CurrentWAL:        v.CurrentWAL,
-		Levels:            make([][]common.FileNo, len(v.Levels)),
+		Levels:            make([][]FileMetadata, len(v.Levels)),
 		NextWALNumber:     v.NextWALNumber,
 		NextSSTableNumber: v.NextSSTableNumber,
 	}
 	for i := range v.Levels {
-		newVersion.Levels[i] = make([]common.FileNo, len(v.Levels[i]))
+		newVersion.Levels[i] = make([]FileMetadata, len(v.Levels[i]))
 		copy(newVersion.Levels[i], v.Levels[i])
 	}
 	return newVersion

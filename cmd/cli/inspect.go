@@ -254,36 +254,33 @@ func inspectAll(engine *db.DB) {
 	renderBoxRow("LM", [][]string{memBox, walBox}, boxWidth)
 
 	// Each SSTable level
-	for level, fileNos := range version.Levels {
-		if len(fileNos) == 0 {
+	for level, fileMetas := range version.Levels {
+		if len(fileMetas) == 0 {
 			fmt.Printf("L%d: (empty)\n", level)
 			continue
 		}
 
 		var boxes [][]string
-		for _, fileNo := range fileNos {
-			table, err := engine.Manifest().GetTable(fileNo, level)
+		for _, fm := range fileMetas {
+			table, err := engine.Manifest().GetTable(fm.FileNo, level)
 			if err != nil {
 				boxes = append(boxes, []string{
-					fmt.Sprintf("%d.sst", fileNo),
+					fmt.Sprintf("%d.sst", fm.FileNo),
 					"error",
 				})
 				continue
 			}
 
 			entryCount := table.Len()
-			index := table.GetIndex()
 
-			firstKey := "?"
-			if len(index.Entries) > 0 {
-				firstKey = string(index.Entries[0].Key)
-			}
+			firstKey := string(fm.SmallestKey)
+			lastKey := string(fm.LargestKey)
 
 			boxes = append(boxes, []string{
-				fmt.Sprintf("%d.sst", fileNo),
+				fmt.Sprintf("%d.sst", fm.FileNo),
 				fmt.Sprintf("%d entries", entryCount),
 				fmt.Sprintf("a:%s", firstKey),
-				"z:<ph>",
+				fmt.Sprintf("z:%s", lastKey),
 			})
 
 			table.Close()
