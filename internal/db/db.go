@@ -112,6 +112,12 @@ func Open(optFns ...Option) (*DB, error) {
 		}
 
 		m.SetWAL(m.Current().NextWALNumber)
+
+		// Persist initial manifest to disk
+		if err = m.Flush(); err != nil {
+			return nil, fmt.Errorf("failed to write initial manifest: %w", err)
+		}
+
 		mt = memtable.NewMapMemtable()
 		nextSeq = 0
 	}
