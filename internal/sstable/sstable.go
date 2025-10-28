@@ -35,6 +35,7 @@ type WriteResult struct {
 	BytesWritten uint64
 	SmallestKey  []byte
 	LargestKey   []byte
+	EntryCount   uint64
 }
 
 // WriteSSTable writes a complete SSTable from a stream of sorted entries.
@@ -133,6 +134,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 		BytesWritten: offset,
 		SmallestKey:  smallestKey,
 		LargestKey:   largestKey,
+		EntryCount:   totalEntryCount,
 	}, nil
 }
 
