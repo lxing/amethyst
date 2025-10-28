@@ -13,7 +13,7 @@ import (
 
 func dumpIterator(iter common.EntryIterator) {
 	// Print header
-	fmt.Printf("%-6s %-20s %10s  %s\n", "OP", "KEY", "SEQ", "VALUE")
+	fmt.Printf("%-6s %-8s %-20s  %s\n", "OP", "SEQ", "KEY", "VALUE")
 	fmt.Println()
 
 	count := 0
@@ -41,9 +41,9 @@ func dumpIterator(iter common.EntryIterator) {
 
 		// Format with fixed-width columns
 		if entry.Type == common.EntryTypePut {
-			fmt.Printf("%-6s %-20s %10d  %s\n", typeStr, key, entry.Seq, string(entry.Value))
+			fmt.Printf("%-6s %-8d %-20s  %s\n", typeStr, entry.Seq, key, string(entry.Value))
 		} else {
-			fmt.Printf("%-6s %-20s %10d\n", typeStr, key, entry.Seq)
+			fmt.Printf("%-6s %-8d %-20s\n", typeStr, entry.Seq, key)
 		}
 	}
 
