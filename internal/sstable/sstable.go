@@ -33,10 +33,10 @@ import (
 
 // WriteResult contains metadata from writing an SSTable.
 type WriteResult struct {
-	BytesWritten uint64
+	BytesWritten uint32
 	SmallestKey  []byte
 	LargestKey   []byte
-	EntryCount   uint64
+	EntryCount   uint32
 }
 
 // WriteSSTable writes a complete SSTable from a stream of sorted entries.
@@ -132,10 +132,10 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 	offset += uint32(n)
 
 	return &WriteResult{
-		BytesWritten: uint64(offset),
+		BytesWritten: offset,
 		SmallestKey:  smallestKey,
 		LargestKey:   largestKey,
-		EntryCount:   uint64(totalEntryCount),
+		EntryCount:   totalEntryCount,
 	}, nil
 }
 

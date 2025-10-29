@@ -29,8 +29,8 @@ func TestFooterEncodeDecode(t *testing.T) {
 		{
 			name: "Large offsets",
 			footer: Footer{
-				FilterOffset: 0xFFFFFFFFFFFFFFFF,
-				IndexOffset:  0xFFFFFFFFFFFFFFFE,
+				FilterOffset: 0xFFFFFFFF,
+				IndexOffset:  0xFFFFFFFE,
 			},
 		},
 	}

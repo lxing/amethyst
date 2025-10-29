@@ -33,26 +33,26 @@ func TestWriteReadUint8(t *testing.T) {
 	}
 }
 
-func TestWriteReadUint64(t *testing.T) {
+func TestWriteReadUint32(t *testing.T) {
 	tests := []struct {
 		name  string
-		value uint64
+		value uint32
 	}{
 		{"Zero", 0},
 		{"One", 1},
-		{"Max", 0xFFFFFFFFFFFFFFFF},
-		{"Mid", 0x8000000000000000},
-		{"Large", 1234567890123456789},
+		{"Max", 0xFFFFFFFF},
+		{"Mid", 0x80000000},
+		{"Large", 1234567890},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			n, err := WriteUint64(&buf, tt.value)
+			n, err := WriteUint32(&buf, tt.value)
 			require.NoError(t, err)
-			require.Equal(t, 8, n)
+			require.Equal(t, 4, n)
 
-			result, err := ReadUint64(&buf)
+			result, err := ReadUint32(&buf)
 			require.NoError(t, err)
 			require.Equal(t, tt.value, result)
 		})
@@ -96,20 +96,19 @@ func TestReadUint8Error(t *testing.T) {
 	require.Equal(t, io.EOF, err)
 }
 
-func TestReadUint64Error(t *testing.T) {
+func TestReadUint32Error(t *testing.T) {
 	tests := []struct {
 		name string
 		data []byte
 	}{
 		{"Empty", []byte{}},
 		{"Incomplete", []byte{1, 2, 3}},
-		{"SevenBytes", []byte{1, 2, 3, 4, 5, 6, 7}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(tt.data)
-			_, err := ReadUint64(buf)
+			_, err := ReadUint32(buf)
 			require.Error(t, err)
 		})
 	}
@@ -144,9 +143,9 @@ func TestReadBytesZeroLength(t *testing.T) {
 
 func TestLittleEndianEncoding(t *testing.T) {
 	var buf bytes.Buffer
-	_, err := WriteUint64(&buf, 0x0102030405060708)
+	_, err := WriteUint32(&buf, 0x01020304)
 	require.NoError(t, err)
 
-	expected := []byte{0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01}
+	expected := []byte{0x04, 0x03, 0x02, 0x01}
 	require.Equal(t, expected, buf.Bytes())
 }

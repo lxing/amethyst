@@ -63,7 +63,7 @@ func TestBulkPutGetDelete(t *testing.T) {
 
 	const n = 32
 	expected := make(map[string]*common.Entry, 3*n)
-	var nextSeq uint64
+	var nextSeq uint32
 
 	// Write first n keys that will remain as puts.
 	for i := 0; i < n; i++ {

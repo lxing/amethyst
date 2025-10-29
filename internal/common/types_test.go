@@ -87,13 +87,13 @@ func TestReadEntryIncomplete(t *testing.T) {
 	}{
 		{
 			name: "Incomplete header",
-			data: []byte{0x00, 0x01, 0x02}, // Only 3 bytes of 17-byte header
+			data: []byte{0x00, 0x01, 0x02}, // Only 3 bytes of 13-byte header
 		},
 		{
 			name: "Missing key data",
 			data: []byte{
-				0x00,                      // type
-				0x2A, 0, 0, 0, 0, 0, 0, 0, // seq
+				0x00,          // type
+				0x2A, 0, 0, 0, // seq (uint32)
 				0x05, 0, 0, 0, // keyLen = 5
 				0x00, 0, 0, 0, // valueLen = 0
 				0x01, 0x02, // Only 2 of 5 key bytes
@@ -102,8 +102,8 @@ func TestReadEntryIncomplete(t *testing.T) {
 		{
 			name: "Missing value data",
 			data: []byte{
-				0x00,                      // type
-				0x2A, 0, 0, 0, 0, 0, 0, 0, // seq
+				0x00,          // type
+				0x2A, 0, 0, 0, // seq (uint32)
 				0x03, 0, 0, 0, // keyLen = 3
 				0x05, 0, 0, 0, // valueLen = 5
 				0x61, 0x62, 0x63, // key: "abc"

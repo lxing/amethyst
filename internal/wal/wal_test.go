@@ -93,7 +93,7 @@ func TestBulkAppendBatches(t *testing.T) {
 	)
 
 	expected := make([]*common.Entry, 0, batches*perBatch)
-	seq := uint64(1)
+	seq := uint32(1)
 
 	for batch := 0; batch < batches; batch++ {
 		current := make([]*common.Entry, 0, perBatch)

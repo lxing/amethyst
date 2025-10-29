@@ -39,8 +39,8 @@ func TestWriteSSTable(t *testing.T) {
 	// Write SSTable
 	result, err := WriteSSTable(&buf, iter)
 	require.NoError(t, err)
-	require.Greater(t, result.BytesWritten, uint64(0))
-	require.Equal(t, result.BytesWritten, uint64(buf.Len()))
+	require.Greater(t, result.BytesWritten, uint32(0))
+	require.Equal(t, result.BytesWritten, uint32(buf.Len()))
 	require.Equal(t, []byte("apple"), result.SmallestKey)
 	require.Equal(t, []byte("cherry"), result.LargestKey)
 
@@ -52,8 +52,8 @@ func TestWriteSSTable(t *testing.T) {
 	require.NotNil(t, footer)
 
 	// Verify footer offsets are valid
-	require.Greater(t, footer.IndexOffset, uint64(0))
-	require.LessOrEqual(t, footer.IndexOffset, uint64(len(data)-FOOTER_SIZE))
+	require.Greater(t, footer.IndexOffset, uint32(0))
+	require.LessOrEqual(t, footer.IndexOffset, uint32(len(data)-FOOTER_SIZE))
 
 	// Read and verify index
 	indexData := data[footer.IndexOffset : len(data)-FOOTER_SIZE]
@@ -61,7 +61,7 @@ func TestWriteSSTable(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, index)
 	require.Equal(t, 1, len(index.Entries)) // Should have 1 block (3 entries < BLOCK_SIZE)
-	require.Equal(t, uint64(0), index.Entries[0].BlockOffset)
+	require.Equal(t, uint32(0), index.Entries[0].BlockOffset)
 	require.Equal(t, []byte("apple"), index.Entries[0].Key)
 }
 
@@ -127,7 +127,7 @@ func TestSSTableReaderMultipleBlocks(t *testing.T) {
 		key := []byte{byte(i / 256), byte(i % 256)} // 2-byte key
 		entries[i] = &common.Entry{
 			Type:  common.EntryTypePut,
-			Seq:   uint64(i + 1),
+			Seq:   uint32(i + 1),
 			Key:   key,
 			Value: []byte{byte(i)},
 		}
@@ -190,7 +190,7 @@ func TestSSTableReaderTombstone(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, entry)
 	require.Equal(t, common.EntryTypeDelete, entry.Type)
-	require.Equal(t, uint64(2), entry.Seq)
+	require.Equal(t, uint32(2), entry.Seq)
 }
 
 func TestSSTableIterator(t *testing.T) {
@@ -201,7 +201,7 @@ func TestSSTableIterator(t *testing.T) {
 		key := []byte{byte(i / 256), byte(i % 256)}
 		entries[i] = &common.Entry{
 			Type:  common.EntryTypePut,
-			Seq:   uint64(i + 1),
+			Seq:   uint32(i + 1),
 			Key:   key,
 			Value: []byte{byte(i)},
 		}

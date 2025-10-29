@@ -9,10 +9,10 @@ import (
 
 func TestOptimalBloomFilterParams(t *testing.T) {
 	tests := []struct {
-		n            uint64
+		n            uint32
 		p            float64
 		expectedK    uint32
-		expectedMMin uint64 // m should be at least this
+		expectedMMin uint32 // m should be at least this
 	}{
 		{100, 0.01, 7, 900},   // ~958 bits for 100 elements at 1% FP
 		{1000, 0.01, 7, 9000}, // ~9585 bits for 1000 elements at 1% FP
@@ -27,7 +27,7 @@ func TestOptimalBloomFilterParams(t *testing.T) {
 }
 
 func TestBloomFilterFalsePositiveRate(t *testing.T) {
-	n := uint64(1000)
+	n := uint32(1000)
 	p := 0.01 // 1% target false positive rate
 
 	// Compute optimal parameters
@@ -35,7 +35,7 @@ func TestBloomFilterFalsePositiveRate(t *testing.T) {
 	bf := NewBloomFilter(k, m).(*bloomFilter)
 
 	// Add n keys (using format "key-%d")
-	for i := uint64(0); i < n; i++ {
+	for i := uint32(0); i < n; i++ {
 		key := []byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
 		bf.Add(key)
 	}
@@ -43,7 +43,7 @@ func TestBloomFilterFalsePositiveRate(t *testing.T) {
 	// Test a large number of keys that were NOT added
 	testCount := 10000
 	falsePositives := 0
-	for i := uint64(n); i < n+uint64(testCount); i++ {
+	for i := uint32(n); i < n+uint32(testCount); i++ {
 		key := []byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
 		if bf.MayContain(key) {
 			falsePositives++
@@ -132,8 +132,8 @@ func TestBloomFilterWriteAndRead(t *testing.T) {
 	n, err := WriteBloomFilter(&buf, original)
 	require.NoError(t, err, "WriteBloomFilter failed")
 
-	// Check bytes written: 4 (k) + 8 (m) + bitmap bytes
-	expectedSize := 4 + 8 + int((1000+7)/8)
+	// Check bytes written: 4 (k) + 4 (m) + bitmap bytes
+	expectedSize := 4 + 4 + int((1000+7)/8)
 	require.Equal(t, expectedSize, n, "WriteBloomFilter bytes written")
 
 	// Deserialize
@@ -193,6 +193,6 @@ func TestBloomFilterHash(t *testing.T) {
 	require.NotEqual(t, h2a, h2c, "different keys should produce different hash2")
 
 	// Test that hash2 is never zero
-	require.NotEqual(t, uint64(0), h2a, "hash2 should not be zero")
-	require.NotEqual(t, uint64(0), h2c, "hash2 should not be zero")
+	require.NotEqual(t, uint32(0), h2a, "hash2 should not be zero")
+	require.NotEqual(t, uint32(0), h2c, "hash2 should not be zero")
 }

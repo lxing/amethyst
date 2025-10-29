@@ -29,7 +29,7 @@ func TestIndexEntryEncodeDecode(t *testing.T) {
 		{
 			name: "Large offset",
 			entry: &IndexEntry{
-				BlockOffset: 0xFFFFFFFFFFFFFFFF,
+				BlockOffset: 0xFFFFFFFF,
 				Key:         []byte("last-key"),
 			},
 		},
@@ -76,7 +76,7 @@ func TestIndexFindBlockOffset(t *testing.T) {
 	tests := []struct {
 		name        string
 		key         string
-		wantOffset  uint64
+		wantOffset  uint32
 		wantFound   bool
 	}{
 		{
@@ -162,7 +162,7 @@ func TestIndexFindBlockOffset_EmptyIndex(t *testing.T) {
 	idx := &Index{Entries: []IndexEntry{}}
 	offset, found := idx.FindBlockOffset([]byte("any"))
 	require.False(t, found)
-	require.Equal(t, uint64(0), offset)
+	require.Equal(t, uint32(0), offset)
 }
 
 func TestIndexWriteRead(t *testing.T) {

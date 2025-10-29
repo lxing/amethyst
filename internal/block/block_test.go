@@ -20,7 +20,7 @@ func testBlockWithEntries(t *testing.T, n int) {
 		key := fmt.Sprintf("key_%02d", i)
 		entries[i] = &common.Entry{
 			Type:  common.EntryTypePut,
-			Seq:   uint64(i + 1),
+			Seq:   uint32(i + 1),
 			Key:   []byte(key),
 			Value: []byte(fmt.Sprintf("value_%02d", i)),
 		}
@@ -105,5 +105,5 @@ func TestBlockWithTombstone(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, found)
 	require.Equal(t, common.EntryTypeDelete, found.Type)
-	require.Equal(t, uint64(2), found.Seq)
+	require.Equal(t, uint32(2), found.Seq)
 }

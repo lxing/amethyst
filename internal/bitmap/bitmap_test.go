@@ -8,8 +8,8 @@ import (
 
 func TestNewBitmap(t *testing.T) {
 	tests := []struct {
-		numBits      uint64
-		expectedSize uint64
+		numBits      uint32
+		expectedSize uint32
 	}{
 		{0, 0},
 		{1, 1},
@@ -23,11 +23,11 @@ func TestNewBitmap(t *testing.T) {
 
 	for _, tt := range tests {
 		b := NewBitmap(tt.numBits).(*bitmapImpl)
-		require.Equal(t, tt.expectedSize, uint64(len(b.data)), "NewBitmap(%d) data size", tt.numBits)
+		require.Equal(t, tt.expectedSize, uint32(len(b.data)), "NewBitmap(%d) data size", tt.numBits)
 		require.Equal(t, tt.numBits, b.numBits, "NewBitmap(%d) numBits", tt.numBits)
 
 		// Verify all bits are 0
-		for i := uint64(0); i < tt.numBits; i++ {
+		for i := uint32(0); i < tt.numBits; i++ {
 			require.False(t, b.Contains(i), "NewBitmap(%d): bit %d should be 0", tt.numBits, i)
 		}
 	}
@@ -37,12 +37,12 @@ func TestAddAndContains(t *testing.T) {
 	b := NewBitmap(64)
 
 	// Initially all bits should be 0
-	for i := uint64(0); i < 64; i++ {
+	for i := uint32(0); i < 64; i++ {
 		require.False(t, b.Contains(i), "bit %d should initially be 0", i)
 	}
 
 	// Add some bits
-	positions := map[uint64]struct{}{
+	positions := map[uint32]struct{}{
 		0: {}, 1: {}, 7: {}, 8: {}, 15: {}, 16: {}, 31: {}, 32: {}, 63: {},
 	}
 	for pos := range positions {
@@ -50,7 +50,7 @@ func TestAddAndContains(t *testing.T) {
 	}
 
 	// Verify all bits have correct status
-	for i := uint64(0); i < 64; i++ {
+	for i := uint32(0); i < 64; i++ {
 		_, shouldBeSet := positions[i]
 		require.Equal(t, shouldBeSet, b.Contains(i), "bit %d set status", i)
 	}
@@ -60,17 +60,17 @@ func TestRemove(t *testing.T) {
 	b := NewBitmap(64)
 
 	// Add all bits
-	for i := uint64(0); i < 64; i++ {
+	for i := uint32(0); i < 64; i++ {
 		b.Add(i)
 	}
 
 	// Verify all bits are set
-	for i := uint64(0); i < 64; i++ {
+	for i := uint32(0); i < 64; i++ {
 		require.True(t, b.Contains(i), "bit %d should be set", i)
 	}
 
 	// Remove some bits
-	positions := map[uint64]struct{}{
+	positions := map[uint32]struct{}{
 		0: {}, 7: {}, 8: {}, 15: {}, 31: {}, 63: {},
 	}
 	for pos := range positions {
@@ -78,7 +78,7 @@ func TestRemove(t *testing.T) {
 	}
 
 	// Verify all bits have correct status
-	for i := uint64(0); i < 64; i++ {
+	for i := uint32(0); i < 64; i++ {
 		_, shouldBeCleared := positions[i]
 		require.Equal(t, !shouldBeCleared, b.Contains(i), "bit %d set status", i)
 	}
@@ -95,7 +95,7 @@ func TestIdempotent(t *testing.T) {
 	require.True(t, b.Contains(42), "bit 42 should be set")
 
 	// Verify only that bit is set
-	for i := uint64(0); i < 64; i++ {
+	for i := uint32(0); i < 64; i++ {
 		if i == 42 {
 			require.True(t, b.Contains(i), "bit %d should be set", i)
 		} else {
@@ -133,7 +133,7 @@ func TestBoundsChecking(t *testing.T) {
 func TestBytesAndFromBytes(t *testing.T) {
 	// Create and populate a bitmap
 	original := NewBitmap(100)
-	positions := map[uint64]struct{}{
+	positions := map[uint32]struct{}{
 		0: {}, 1: {}, 7: {}, 8: {}, 15: {}, 16: {}, 31: {}, 32: {}, 63: {}, 64: {}, 99: {},
 	}
 	for pos := range positions {
@@ -149,7 +149,7 @@ func TestBytesAndFromBytes(t *testing.T) {
 	restored := NewBitmapFromBytes(100, data)
 
 	// Verify all bits match
-	for i := uint64(0); i < 100; i++ {
+	for i := uint32(0); i < 100; i++ {
 		require.Equal(t, original.Contains(i), restored.Contains(i), "bit %d mismatch", i)
 	}
 }
