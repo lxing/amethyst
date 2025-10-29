@@ -1,12 +1,7 @@
 package bitmap
 
 // Bitmap is a set interface backed by a space-efficient bit array.
-// We will use it to build a bloom filter.
-//
-// Implementation notes for students:
-// - Use []byte as backing storage
-// - Each byte stores 8 bits
-// - Bit i is in byte i/8, at bit position i%8
+// We will use it to support a bloom filter.
 type Bitmap interface {
 	// Add sets the bit at position i to 1 (adds i to the set).
 	Add(i uint64)

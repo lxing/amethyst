@@ -1,9 +1,10 @@
 package bitmap
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
+
+	"amethyst/internal/common"
 )
 
 // bitmapImpl is a concrete implementation of the Bitmap interface.
@@ -57,43 +58,40 @@ func (b *bitmapImpl) Contains(i uint64) bool {
 // Format: [8 bytes: numBits][data bytes]
 // Returns the number of bytes written.
 func WriteBitmap(w io.Writer, b *bitmapImpl) (int, error) {
-	var bytesWritten int
+	total := 0
 
-	// Write numBits (8 bytes, big-endian)
-	numBitsBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(numBitsBytes, b.numBits)
-	n, err := w.Write(numBitsBytes)
-	bytesWritten += n
+	// Write numBits (8 bytes)
+	n, err := common.WriteUint64(w, b.numBits)
+	total += n
 	if err != nil {
-		return bytesWritten, err
+		return total, err
 	}
 
 	// Write data bytes
-	n, err = w.Write(b.data)
-	bytesWritten += n
+	n, err = common.WriteBytes(w, b.data)
+	total += n
 	if err != nil {
-		return bytesWritten, err
+		return total, err
 	}
 
-	return bytesWritten, nil
+	return total, nil
 }
 
 // ReadBitmap deserializes a bitmap from a reader.
 // Format: [8 bytes: numBits][data bytes]
 func ReadBitmap(r io.Reader) (Bitmap, error) {
-	// Read numBits (8 bytes, big-endian)
-	numBitsBytes := make([]byte, 8)
-	if _, err := io.ReadFull(r, numBitsBytes); err != nil {
+	// Read numBits (8 bytes)
+	numBits, err := common.ReadUint64(r)
+	if err != nil {
 		return nil, err
 	}
-	numBits := binary.BigEndian.Uint64(numBitsBytes)
 
 	// Calculate expected data size
 	numBytes := (numBits + 7) / 8
 
 	// Read data bytes
-	data := make([]byte, numBytes)
-	if _, err := io.ReadFull(r, data); err != nil {
+	data, err := common.ReadBytes(r, numBytes)
+	if err != nil {
 		return nil, err
 	}
 

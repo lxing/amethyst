@@ -10,7 +10,7 @@ import (
 // Index Block Layout:
 //
 // ┌──────────────────┐
-// │    numEntries    │  uint64 - number of data blocks
+// │    numEntries    │  uint64
 // ├──────────────────┤
 // │   IndexEntry 0   │
 // ├──────────────────┤

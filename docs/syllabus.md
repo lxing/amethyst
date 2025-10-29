@@ -2,11 +2,12 @@
 
 ## Topics
 
+- Introduction to Golang
 - Hashmap memtable
+- Iterators
 - WAL and recovery
 - Batched WAL write
-- SSTable index with binary search
-- SSTable block binary search
+- SSTable with binary search
 - Bitmap
 - Bloom filter
 - Heap

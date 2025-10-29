@@ -11,6 +11,8 @@ type blockImpl struct {
 	entries []*common.Entry // sorted by key
 }
 
+var _ Block = (*blockImpl)(nil)
+
 // NewBlock parses a raw data block into memory.
 func NewBlock(data []byte) (Block, error) {
 	var entries []*common.Entry
@@ -29,8 +31,6 @@ func NewBlock(data []byte) (Block, error) {
 
 	return &blockImpl{entries: entries}, nil
 }
-
-var _ Block = (*blockImpl)(nil)
 
 // Get performs binary search to find the entry for the given key.
 func (b *blockImpl) Get(key []byte) (*common.Entry, bool) {

@@ -92,7 +92,7 @@ func TestReadEntryIncomplete(t *testing.T) {
 		{
 			name: "Missing key data",
 			data: []byte{
-				0x00,                   // type
+				0x00,                      // type
 				0x2A, 0, 0, 0, 0, 0, 0, 0, // seq
 				0x05, 0, 0, 0, // keyLen = 5
 				0x00, 0, 0, 0, // valueLen = 0
@@ -102,7 +102,7 @@ func TestReadEntryIncomplete(t *testing.T) {
 		{
 			name: "Missing value data",
 			data: []byte{
-				0x00,                   // type
+				0x00,                      // type
 				0x2A, 0, 0, 0, 0, 0, 0, 0, // seq
 				0x03, 0, 0, 0, // keyLen = 3
 				0x05, 0, 0, 0, // valueLen = 5
