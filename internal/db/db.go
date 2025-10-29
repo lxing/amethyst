@@ -337,7 +337,7 @@ func (d *DB) writeSSTable() error {
 	}
 	d.manifest.Apply(edit)
 
-	common.LogDuration(start, "flushed %d entries to %d.sst", result.EntryCount, fileNo)
+	common.LogDuration(start, "  flushed %d entries to %d.sst", result.EntryCount, fileNo)
 	return nil
 }
 

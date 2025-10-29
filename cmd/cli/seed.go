@@ -91,6 +91,6 @@ func runSeed(engine *db.DB, x int, seedIndex *int) {
 	}
 
 	avgPerEntry := time.Since(start) / time.Duration(count)
-	common.LogDuration(start, "seeded %d entries (26 * %d, index %d-%d) - %v/entry",
+	common.LogDuration(start, "  seeded %d entries (26 * %d, index %d-%d) - %v/entry",
 		count, x, startIndex, *seedIndex-1, avgPerEntry)
 }

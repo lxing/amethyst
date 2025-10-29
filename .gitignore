@@ -4,6 +4,9 @@
 # But track the adb wrapper script
 !/bin/adb
 
+# Database runtime files
+/data/
+
 # Go build cache
 .gocache/
 
