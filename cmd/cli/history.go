@@ -66,7 +66,6 @@ func (h *History) add(cmd string) {
 
 	h.commands = append(h.commands, cmd)
 
-	// Keep only last maxHistorySize commands
 	if len(h.commands) > maxHistorySize {
 		h.commands = h.commands[len(h.commands)-maxHistorySize:]
 	}

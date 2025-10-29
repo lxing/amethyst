@@ -9,19 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func cleanupDB(t *testing.T) {
+func cleanupDB(t *testing.T, dbPath string) {
 	t.Helper()
-	os.RemoveAll("wal")
-	os.RemoveAll("sstable")
-	os.Remove("MANIFEST")
-	os.Remove("MANIFEST.tmp")
+	os.RemoveAll(dbPath)
 }
 
 func TestWALRotation(t *testing.T) {
-	defer cleanupDB(t)
+	testDir := t.TempDir()
+	defer cleanupDB(t, testDir)
 
 	// Create DB with low memtable flush threshold
-	d, err := db.Open(db.WithMemtableFlushThreshold(5))
+	d, err := db.Open(db.WithMemtableFlushThreshold(5), db.WithDBPath(testDir))
 	require.NoError(t, err)
 
 	// Write 4 entries (below threshold)
@@ -49,7 +47,7 @@ func TestWALRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify new WAL file was created (wal/1.log)
-	_, err = os.Stat("wal/1.log")
+	_, err = os.Stat(fmt.Sprintf("%s/wal/1.log", testDir))
 	require.NoError(t, err, "WAL rotation should create wal/1.log")
 
 	// Write one more entry to new WAL
@@ -63,10 +61,11 @@ func TestWALRotation(t *testing.T) {
 }
 
 func TestSSTableReadAfterFlush(t *testing.T) {
-	defer cleanupDB(t)
+	testDir := t.TempDir()
+	defer cleanupDB(t, testDir)
 
 	// Create DB with low memtable flush threshold to trigger flush
-	d, err := db.Open(db.WithMemtableFlushThreshold(3))
+	d, err := db.Open(db.WithMemtableFlushThreshold(3), db.WithDBPath(testDir))
 	require.NoError(t, err)
 
 	// Write 3 entries (reaches threshold)
@@ -82,7 +81,7 @@ func TestSSTableReadAfterFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify SSTable file was created
-	_, err = os.Stat("sstable/0/0.sst")
+	_, err = os.Stat(fmt.Sprintf("%s/sstable/0/0.sst", testDir))
 	require.NoError(t, err, "Flush should create sstable/0/0.sst")
 
 	// Write new entry to new memtable
@@ -113,10 +112,11 @@ func TestSSTableReadAfterFlush(t *testing.T) {
 }
 
 func TestSSTableWithDeletes(t *testing.T) {
-	defer cleanupDB(t)
+	testDir := t.TempDir()
+	defer cleanupDB(t, testDir)
 
 	// Create DB
-	d, err := db.Open(db.WithMemtableFlushThreshold(5))
+	d, err := db.Open(db.WithMemtableFlushThreshold(5), db.WithDBPath(testDir))
 	require.NoError(t, err)
 
 	// Write and delete in same memtable
@@ -147,10 +147,11 @@ func TestSSTableWithDeletes(t *testing.T) {
 }
 
 func TestL0IterationOrder(t *testing.T) {
-	defer cleanupDB(t)
+	testDir := t.TempDir()
+	defer cleanupDB(t, testDir)
 
 	// Create DB with threshold of 2 entries to trigger multiple L0 flushes
-	d, err := db.Open(db.WithMemtableFlushThreshold(2))
+	d, err := db.Open(db.WithMemtableFlushThreshold(2), db.WithDBPath(testDir))
 	require.NoError(t, err)
 
 	// Write key "apple" with value "v1", then flush
@@ -164,7 +165,7 @@ func TestL0IterationOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify 0.sst exists
-	_, err = os.Stat("sstable/0/0.sst")
+	_, err = os.Stat(fmt.Sprintf("%s/sstable/0/0.sst", testDir))
 	require.NoError(t, err, "First flush should create 0.sst")
 
 	// Write key "apple" again with NEW value "v2", then flush
@@ -178,7 +179,7 @@ func TestL0IterationOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify 1.sst exists
-	_, err = os.Stat("sstable/0/1.sst")
+	_, err = os.Stat(fmt.Sprintf("%s/sstable/0/1.sst", testDir))
 	require.NoError(t, err, "Second flush should create 1.sst")
 
 	// Now we have:

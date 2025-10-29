@@ -9,7 +9,8 @@ import (
 )
 
 func TestNewManifest(t *testing.T) {
-	m := NewManifest(7)
+	paths := common.NewPathManager("test_data")
+	m := NewManifest(paths, 7)
 	v := m.Current()
 	require.NotNil(t, v)
 	require.Equal(t, 7, len(v.Levels))
@@ -19,7 +20,8 @@ func TestNewManifest(t *testing.T) {
 }
 
 func TestSetWAL(t *testing.T) {
-	m := NewManifest(7)
+	paths := common.NewPathManager("test_data")
+	m := NewManifest(paths, 7)
 
 	// Set initial WAL
 	m.SetWAL(1)
@@ -35,7 +37,8 @@ func TestSetWAL(t *testing.T) {
 }
 
 func TestApplyCompactionEdit(t *testing.T) {
-	m := NewManifest(7)
+	paths := common.NewPathManager("test_data")
+	m := NewManifest(paths, 7)
 
 	// Add tables to L0 and L1
 	edit1 := &CompactionEdit{
@@ -76,7 +79,8 @@ func TestApplyCompactionEdit(t *testing.T) {
 }
 
 func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
-	m := NewManifest(7)
+	paths := common.NewPathManager("test_data")
+	m := NewManifest(paths, 7)
 
 	// Add initial L0 and L1 tables
 	edit1 := &CompactionEdit{
@@ -131,7 +135,8 @@ func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 }
 
 func TestVersionIsolation(t *testing.T) {
-	m := NewManifest(7)
+	paths := common.NewPathManager("test_data")
+	m := NewManifest(paths, 7)
 
 	// Add initial tables
 	edit1 := &CompactionEdit{
@@ -171,7 +176,8 @@ func TestVersionIsolation(t *testing.T) {
 }
 
 func TestNextSSTableNumberPreservation(t *testing.T) {
-	m := NewManifest(7)
+	paths := common.NewPathManager("test_data")
+	m := NewManifest(paths, 7)
 
 	// Add tables with high file numbers
 	edit := &CompactionEdit{

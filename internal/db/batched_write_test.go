@@ -9,10 +9,11 @@ import (
 )
 
 func TestConcurrentWritesWithFlush(t *testing.T) {
-	defer cleanupDB(t)
+	testDir := t.TempDir()
+	defer cleanupDB(t, testDir)
 
 	// Create DB with low threshold to trigger flushes during concurrent writes
-	d, err := db.Open(db.WithMemtableFlushThreshold(50))
+	d, err := db.Open(db.WithMemtableFlushThreshold(50), db.WithDBPath(testDir))
 	require.NoError(t, err)
 
 	// Number of concurrent writers and writes per writer

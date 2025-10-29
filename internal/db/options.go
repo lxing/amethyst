@@ -3,6 +3,7 @@ package db
 import "time"
 
 type Options struct {
+	DBPath                 string
 	MemtableFlushThreshold int
 	MaxSSTableLevel        int
 	MaxBatchSize           int
@@ -10,6 +11,7 @@ type Options struct {
 }
 
 var DefaultOptions = Options{
+	DBPath:                 "bin",
 	MemtableFlushThreshold: 256,
 	MaxSSTableLevel:        3,
 	MaxBatchSize:           50,
@@ -17,6 +19,12 @@ var DefaultOptions = Options{
 }
 
 type Option func(*Options)
+
+func WithDBPath(path string) Option {
+	return func(o *Options) {
+		o.DBPath = path
+	}
+}
 
 func WithMemtableFlushThreshold(n int) Option {
 	return func(o *Options) {

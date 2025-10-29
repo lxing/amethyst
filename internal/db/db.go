@@ -24,6 +24,7 @@ type DB struct {
 	wal       wal.WAL
 	manifest  *manifest.Manifest
 	Opts      Options
+	paths     *common.PathManager
 	writeChan chan *writeRequest
 }
 
@@ -33,12 +34,15 @@ func Open(optFns ...Option) (*DB, error) {
 		fn(&opts)
 	}
 
+	paths := common.NewPathManager(opts.DBPath)
+
 	// Create directories
-	if err := os.MkdirAll("wal", 0755); err != nil {
+	if err := os.MkdirAll(paths.WALDir(), 0755); err != nil {
 		return nil, err
 	}
 	for i := 0; i <= opts.MaxSSTableLevel; i++ {
-		if err := os.MkdirAll(fmt.Sprintf("sstable/%d", i), 0755); err != nil {
+		sstableDir := fmt.Sprintf("%s/%d", paths.SSTableDir(), i)
+		if err := os.MkdirAll(sstableDir, 0755); err != nil {
 			return nil, err
 		}
 	}
@@ -49,7 +53,8 @@ func Open(optFns ...Option) (*DB, error) {
 	var mt memtable.Memtable
 	var nextSeq uint32
 
-	if manifestFile, err := os.Open("MANIFEST"); err == nil {
+	manifestPath := paths.ManifestPath()
+	if manifestFile, err := os.Open(manifestPath); err == nil {
 		// Recovery path: manifest exists
 		defer manifestFile.Close()
 
@@ -58,11 +63,11 @@ func Open(optFns ...Option) (*DB, error) {
 			return nil, fmt.Errorf("failed to read manifest: %w", err)
 		}
 
-		m = manifest.NewManifest(opts.MaxSSTableLevel + 1)
+		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1)
 		m.LoadVersion(version)
 
 		// Open existing WAL for recovery
-		walPath := common.WALPath(version.CurrentWAL)
+		walPath := paths.WALPath(version.CurrentWAL)
 		log, err = wal.OpenWAL(walPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open WAL: %w", err)
@@ -79,10 +84,10 @@ func Open(optFns ...Option) (*DB, error) {
 		common.Logf("recovered from manifest: wal=%d seq=%d\n", version.CurrentWAL, nextSeq)
 	} else {
 		// Fresh DB path: no manifest
-		m = manifest.NewManifest(opts.MaxSSTableLevel + 1)
+		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1)
 
 		// Create initial WAL
-		walPath := common.WALPath(m.Current().NextWALNumber)
+		walPath := paths.WALPath(m.Current().NextWALNumber)
 		log, err = wal.CreateWAL(walPath)
 		if err != nil {
 			return nil, err
@@ -105,6 +110,7 @@ func Open(optFns ...Option) (*DB, error) {
 		wal:       log,
 		manifest:  m,
 		Opts:      opts,
+		paths:     paths,
 		writeChan: make(chan *writeRequest, 100),
 	}
 
@@ -192,20 +198,21 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	common.Logf("get key=%q: checking memtable\n", string(key))
+	common.Logf("get key=%q\n", string(key))
+	common.Logf("  checking memtable\n")
 	entry, ok := d.memtable.Get(key)
 	if ok {
 		if entry.Type == common.EntryTypeDelete {
-			common.Logf("get key=%q: found tombstone in memtable\n", string(key))
+			common.Logf("  found tombstone in memtable\n")
 			return nil, ErrNotFound
 		}
-		common.Logf("get key=%q: found in memtable\n", string(key))
+		common.Logf("  found in memtable\n")
 		return bytes.Clone(entry.Value), nil
 	}
 
 	version := d.manifest.Current()
 	for level, fileMetas := range version.Levels {
-		common.Logf("get key=%q: checking L%d (%d files)\n", string(key), level, len(fileMetas))
+		common.Logf("  checking L%d (%d files)\n", level, len(fileMetas))
 
 		// L0 has overlapping ranges, check newest to oldest
 		// L1+ are non-overlapping, order doesn't matter (for now)
@@ -230,7 +237,7 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 
 			entry, err := table.Get(key)
 			if err == sstable.ErrNotFound {
-				common.Logf("get key=%q: not in L%d/%d.sst\n", string(key), level, fm.FileNo)
+				common.Logf("    not in L%d/%d.sst\n", level, fm.FileNo)
 				continue
 			}
 			if err != nil {
@@ -238,10 +245,10 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 			}
 
 			if entry.Type == common.EntryTypeDelete {
-				common.Logf("get key=%q: found tombstone in L%d/%d.sst\n", string(key), level, fm.FileNo)
+				common.Logf("    found tombstone in L%d/%d.sst\n", level, fm.FileNo)
 				return nil, ErrNotFound
 			}
-			common.Logf("get key=%q: found in L%d/%d.sst\n", string(key), level, fm.FileNo)
+			common.Logf("    found in L%d/%d.sst\n", level, fm.FileNo)
 			return bytes.Clone(entry.Value), nil
 		}
 	}
@@ -260,7 +267,7 @@ func (d *DB) flushMemtable() error {
 	d.wal.Close()
 
 	// 2. Create new WAL file
-	newWALPath := common.WALPath(newWALNum)
+	newWALPath := d.paths.WALPath(newWALNum)
 	newWAL, err := wal.CreateWAL(newWALPath)
 	if err != nil {
 		return err
@@ -296,7 +303,7 @@ func (d *DB) writeSSTable() error {
 	fileNo := v.NextSSTableNumber
 
 	// Create SSTable file in L0
-	path := common.SSTablePath(0, fileNo)
+	path := d.paths.SSTablePath(0, fileNo)
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", path, err)
@@ -350,6 +357,10 @@ func (d *DB) Manifest() *manifest.Manifest {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.manifest
+}
+
+func (d *DB) Paths() *common.PathManager {
+	return d.paths
 }
 
 // Close stops all database operations and releases resources.

@@ -11,5 +11,5 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 go build -o bin/amethyst-cli ./cmd/cli
 
-# Run with all arguments passed through
-exec "$SCRIPT_DIR/amethyst-cli" "$@"
+# Run with database path set to bin/data (absolute path)
+exec "$SCRIPT_DIR/amethyst-cli" "$SCRIPT_DIR/data" "$@"

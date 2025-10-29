@@ -12,10 +12,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const seedIndexFile = "CLI_SEED_INDEX"
-
-func loadSeedIndex() int {
-	data, err := os.ReadFile(seedIndexFile)
+func loadSeedIndex(paths *common.PathManager) int {
+	data, err := os.ReadFile(paths.SeedIndexPath())
 	if err != nil {
 		return 0
 	}
@@ -26,8 +24,8 @@ func loadSeedIndex() int {
 	return idx
 }
 
-func saveSeedIndex(idx int) error {
-	return os.WriteFile(seedIndexFile, []byte(fmt.Sprint(idx)), 0644)
+func saveSeedIndex(paths *common.PathManager, idx int) error {
+	return os.WriteFile(paths.SeedIndexPath(), []byte(fmt.Sprint(idx)), 0644)
 }
 
 var kvPairs = [][2]string{
@@ -88,7 +86,7 @@ func runSeed(engine *db.DB, x int, seedIndex *int) {
 	count := 26 * x
 
 	// Persist seed index to file
-	if err := saveSeedIndex(*seedIndex); err != nil {
+	if err := saveSeedIndex(engine.Paths(), *seedIndex); err != nil {
 		fmt.Printf("warning: failed to persist seed index: %v\n", err)
 	}
 

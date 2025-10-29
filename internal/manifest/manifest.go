@@ -60,16 +60,20 @@ type Manifest struct {
 
 	// Block cache: shared across all SSTables
 	blockCache block_cache.BlockCache
+
+	// Path manager for all database files
+	paths *common.PathManager
 }
 
 // NewManifest creates a new manifest with the given number of levels.
-func NewManifest(numLevels int) *Manifest {
+func NewManifest(paths *common.PathManager, numLevels int) *Manifest {
 	return &Manifest{
 		current: &Version{
 			Levels: make([][]FileMetadata, numLevels),
 		},
 		tableCache: make(map[common.FileNo]sstable.SSTable),
 		blockCache: block_cache.NewBlockCache(),
+		paths:      paths,
 	}
 }
 
@@ -166,7 +170,7 @@ func (m *Manifest) GetTable(fileNo common.FileNo, level int) (sstable.SSTable, e
 	}
 
 	// Open the SSTable file
-	path := common.SSTablePath(level, fileNo)
+	path := m.paths.SSTablePath(level, fileNo)
 	table, err := sstable.OpenSSTable(path, fileNo, m.blockCache)
 	if err != nil {
 		return nil, err
@@ -200,7 +204,8 @@ func (m *Manifest) Flush() error {
 	m.mu.RUnlock()
 
 	// Atomic write: write to temp file, then rename
-	tmpPath := "MANIFEST.tmp"
+	manifestPath := m.paths.ManifestPath()
+	tmpPath := manifestPath + ".tmp"
 	f, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", tmpPath, err)
@@ -224,5 +229,5 @@ func (m *Manifest) Flush() error {
 	}
 
 	// Atomic rename
-	return os.Rename(tmpPath, "MANIFEST")
+	return os.Rename(tmpPath, manifestPath)
 }

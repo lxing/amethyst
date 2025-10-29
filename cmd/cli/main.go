@@ -36,30 +36,27 @@ func printHelp() {
 }
 
 func clearDatabase(ctx *cmdContext) error {
+	// Get the database path before closing
+	dbPath := ctx.engine.Paths().BasePath
+
 	// Close the database to stop all operations
 	if err := ctx.engine.Close(); err != nil {
 		return fmt.Errorf("failed to close database: %w", err)
 	}
 
-	// Remove all database files and directories
-	os.RemoveAll("wal")
-	os.RemoveAll("sstable")
-	os.Remove("MANIFEST")
-	os.Remove("MANIFEST.tmp")
-
-	// Reset seed index to 0
-	ctx.seedIndex = 0
-	if err := saveSeedIndex(0); err != nil {
-		fmt.Printf("warning: failed to reset seed index: %v\n", err)
+	// Remove entire data directory
+	if err := os.RemoveAll(dbPath); err != nil {
+		return fmt.Errorf("failed to remove database directory: %w", err)
 	}
 
 	// Reopen engine (will recreate everything)
-	newEngine, err := db.Open()
+	newEngine, err := db.Open(db.WithDBPath(dbPath))
 	if err != nil {
 		return fmt.Errorf("failed to reopen database: %w", err)
 	}
 
 	ctx.engine = newEngine
+	ctx.seedIndex = 0
 
 	fmt.Println("cleared database")
 	return nil
@@ -69,14 +66,21 @@ func main() {
 	// Disable logging initially to prevent noise during startup
 	common.LoggingEnabled = false
 
-	engine, err := db.Open()
+	// Get database path from command line args
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "usage: %s <db-path>\n", os.Args[0])
+		os.Exit(1)
+	}
+	dbPath := os.Args[1]
+
+	engine, err := db.Open(db.WithDBPath(dbPath))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Load seed index from file
-	seedIndex := loadSeedIndex()
+	seedIndex := loadSeedIndex(engine.Paths())
 
 	// Enable logging after startup
 	common.LoggingEnabled = true
@@ -97,7 +101,9 @@ func main() {
 	defer line.Close()
 
 	line.SetCtrlCAborts(false)
-	line.SetCompleter(fileCompleter)
+	line.SetCompleter(func(line string) []string {
+		return fileCompleter(engine, line)
+	})
 
 	// Load history from file
 	history, err := newHistory()

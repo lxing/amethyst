@@ -15,7 +15,7 @@ import (
 // fileCompleter provides tab completion for inspect and dump commands
 // This is the global completer for liner
 // Runs on every tab press, using ReadDir for performance
-func fileCompleter(line string) []string {
+func fileCompleter(engine *db.DB, line string) []string {
 	var prefix, partial string
 
 	// Check which command we're completing for
@@ -29,6 +29,11 @@ func fileCompleter(line string) []string {
 		return nil
 	}
 
+	if engine == nil {
+		return nil
+	}
+
+	paths := engine.Paths()
 	var matches []string
 
 	// Case 1: Starting completion - suggest memtable and top-level directories
@@ -47,7 +52,7 @@ func fileCompleter(line string) []string {
 
 	// Case 2: Completing wal/ directory - show .log files
 	if strings.HasPrefix(partial, "wal/") {
-		entries, err := os.ReadDir("wal")
+		entries, err := os.ReadDir(paths.WALDir())
 		if err != nil {
 			return nil
 		}
@@ -68,7 +73,7 @@ func fileCompleter(line string) []string {
 
 		// Case 3a: Completing level directory (sstable/<TAB> or sstable/0<TAB>)
 		if !strings.Contains(rest, "/") {
-			entries, err := os.ReadDir("sstable")
+			entries, err := os.ReadDir(paths.SSTableDir())
 			if err != nil {
 				return nil
 			}
@@ -86,14 +91,14 @@ func fileCompleter(line string) []string {
 		// Case 3b: Completing .sst files within a level (sstable/0/<TAB>)
 		parts := strings.SplitN(rest, "/", 2)
 		if len(parts) == 2 {
-			levelDir := "sstable/" + parts[0]
+			levelDir := filepath.Join(paths.SSTableDir(), parts[0])
 			entries, err := os.ReadDir(levelDir)
 			if err != nil {
 				return nil
 			}
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sst") {
-					fullPath := levelDir + "/" + entry.Name()
+					fullPath := "sstable/" + parts[0] + "/" + entry.Name()
 					if strings.HasPrefix(fullPath, partial) {
 						matches = append(matches, prefix+fullPath)
 					}
@@ -318,6 +323,11 @@ func inspect(parts []string, engine *db.DB) {
 	if parts[1] == "memtable" {
 		inspectMemtable(engine)
 	} else {
-		inspectFile(parts[1])
+		// Try path as-is first, then try with basePath prepended
+		path := parts[1]
+		if _, err := os.Stat(path); err != nil {
+			path = filepath.Join(engine.Paths().BasePath, parts[1])
+		}
+		inspectFile(path)
 	}
 }
