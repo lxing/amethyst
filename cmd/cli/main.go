@@ -162,6 +162,7 @@ func main() {
 			start := time.Now()
 			value, err := ctx.engine.Get([]byte(parts[1]))
 			if err != nil {
+				common.LogDuration(start, "get key=%q", parts[1])
 				fmt.Printf("get error: %v\n", err)
 				continue
 			}
