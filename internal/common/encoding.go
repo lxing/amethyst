@@ -39,24 +39,6 @@ func ReadUint32(r io.Reader) (uint32, error) {
 	return binary.LittleEndian.Uint32(buf[:]), nil
 }
 
-// WriteUint64 writes a 64-bit unsigned integer in little-endian format.
-// Returns the number of bytes written (always 8) and any error encountered.
-func WriteUint64(w io.Writer, v uint64) (int, error) {
-	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:], v)
-	return w.Write(buf[:])
-}
-
-// ReadUint64 reads a 64-bit unsigned integer in little-endian format.
-// Returns the integer value and any error encountered.
-func ReadUint64(r io.Reader) (uint64, error) {
-	var buf [8]byte
-	if _, err := io.ReadFull(r, buf[:]); err != nil {
-		return 0, err
-	}
-	return binary.LittleEndian.Uint64(buf[:]), nil
-}
-
 // WriteBytes writes raw bytes to the writer without any length prefix.
 // Returns the number of bytes written and any error encountered.
 func WriteBytes(w io.Writer, data []byte) (int, error) {

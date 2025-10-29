@@ -14,7 +14,7 @@ import (
 type bloomFilter struct {
 	bitmap bitmap.Bitmap
 	k      uint32 // number of hash functions
-	m      uint64 // number of bits in bitmap
+	m      uint32 // number of bits in bitmap
 }
 
 var _ Filter = (*bloomFilter)(nil)
@@ -23,9 +23,9 @@ var _ Filter = (*bloomFilter)(nil)
 // n: expected number of elements to insert
 // p: desired false positive rate (e.g., 0.01 for 1%)
 // Returns: k (number of hash functions), m (number of bits)
-func OptimalBloomFilterParams(n uint64, p float64) (k uint32, m uint64) {
+func OptimalBloomFilterParams(n uint32, p float64) (k uint32, m uint32) {
 	// m = -n * ln(p) / (ln(2)^2)
-	m = uint64(math.Ceil(-float64(n) * math.Log(p) / (math.Ln2 * math.Ln2)))
+	m = uint32(math.Ceil(-float64(n) * math.Log(p) / (math.Ln2 * math.Ln2)))
 
 	// k = (m/n) * ln(2)
 	k = uint32(math.Ceil(float64(m) / float64(n) * math.Ln2))
@@ -41,7 +41,7 @@ func OptimalBloomFilterParams(n uint64, p float64) (k uint32, m uint64) {
 // NewBloomFilter creates a new bloom filter.
 // k: number of hash functions
 // m: number of bits in the bitmap
-func NewBloomFilter(k uint32, m uint64) Filter {
+func NewBloomFilter(k uint32, m uint32) Filter {
 	return &bloomFilter{
 		bitmap: bitmap.NewBitmap(m),
 		k:      k,
@@ -50,7 +50,7 @@ func NewBloomFilter(k uint32, m uint64) Filter {
 }
 
 // NewBloomFilterFromBytes reconstructs a bloom filter from serialized data.
-func NewBloomFilterFromBytes(k uint32, m uint64, data []byte) Filter {
+func NewBloomFilterFromBytes(k uint32, m uint32, data []byte) Filter {
 	return &bloomFilter{
 		bitmap: bitmap.NewBitmapFromBytes(m, data),
 		k:      k,
@@ -62,7 +62,7 @@ func NewBloomFilterFromBytes(k uint32, m uint64, data []byte) Filter {
 func (bf *bloomFilter) Add(key []byte) {
 	h1, h2 := bf.hash(key)
 	for i := uint32(0); i < bf.k; i++ {
-		pos := (h1 + uint64(i)*h2) % bf.m
+		pos := uint32((h1 + uint64(i)*h2) % uint64(bf.m))
 		bf.bitmap.Add(pos)
 	}
 }
@@ -72,7 +72,7 @@ func (bf *bloomFilter) Add(key []byte) {
 func (bf *bloomFilter) MayContain(key []byte) bool {
 	h1, h2 := bf.hash(key)
 	for i := uint32(0); i < bf.k; i++ {
-		pos := (h1 + uint64(i)*h2) % bf.m
+		pos := uint32((h1 + uint64(i)*h2) % uint64(bf.m))
 		if !bf.bitmap.Contains(pos) {
 			return false
 		}
@@ -102,7 +102,7 @@ func (bf *bloomFilter) hash(key []byte) (uint64, uint64) {
 }
 
 // WriteBloomFilter serializes a bloom filter to a writer.
-// Format: [k: uint32][m: uint64][bitmap data: []byte]
+// Format: [k: uint32][m: uint32][bitmap data: []byte]
 func WriteBloomFilter(w io.Writer, bf *bloomFilter) (int, error) {
 	total := 0
 
@@ -114,7 +114,7 @@ func WriteBloomFilter(w io.Writer, bf *bloomFilter) (int, error) {
 	}
 
 	// Write m (number of bits)
-	n, err = common.WriteUint64(w, bf.m)
+	n, err = common.WriteUint32(w, bf.m)
 	total += n
 	if err != nil {
 		return total, err
@@ -139,14 +139,14 @@ func ReadBloomFilter(r io.Reader) (Filter, error) {
 	}
 
 	// Read m
-	m, err := common.ReadUint64(r)
+	m, err := common.ReadUint32(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Calculate bitmap size and read data
 	numBytes := (m + 7) / 8
-	data, err := common.ReadBytes(r, numBytes)
+	data, err := common.ReadBytes(r, uint64(numBytes))
 	if err != nil {
 		return nil, err
 	}

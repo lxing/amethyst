@@ -26,7 +26,7 @@ const (
 // It supports serialization and deserialization to/from a byte stream.
 type Entry struct {
 	Type  EntryType
-	Seq   uint64
+	Seq   uint32
 	Key   []byte
 	Value []byte
 }
@@ -42,11 +42,11 @@ type EntryIterator interface {
 // ┌──────────────────┐
 // │    entryType     │  uint8 - 0=Put, 1=Delete
 // ├──────────────────┤
-// │       seq        │  uint64
+// │       seq        │  uint32
 // ├──────────────────┤
-// │      keyLen      │  uint64 - len(key)
+// │      keyLen      │  uint32 - len(key)
 // ├──────────────────┤
-// │     valueLen     │  uint64 - len(value), 0 for tombstones
+// │     valueLen     │  uint32 - len(value), 0 for tombstones
 // ├──────────────────┤
 // │       key        │  []byte
 // ├──────────────────┤
@@ -64,19 +64,19 @@ func WriteEntry(w io.Writer, e *Entry) (int, error) {
 		return total, err
 	}
 
-	n, err = WriteUint64(w, e.Seq)
+	n, err = WriteUint32(w, e.Seq)
 	total += n
 	if err != nil {
 		return total, err
 	}
 
-	n, err = WriteUint64(w, uint64(len(e.Key)))
+	n, err = WriteUint32(w, uint32(len(e.Key)))
 	total += n
 	if err != nil {
 		return total, err
 	}
 
-	n, err = WriteUint64(w, uint64(len(e.Value)))
+	n, err = WriteUint32(w, uint32(len(e.Value)))
 	total += n
 	if err != nil {
 		return total, err
@@ -115,17 +115,17 @@ func ReadEntry(r io.ByteReader) (*Entry, error) {
 
 	reader := r.(io.Reader)
 
-	seq, err := ReadUint64(reader)
+	seq, err := ReadUint32(reader)
 	if err != nil {
 		return nil, ErrIncompleteEntry
 	}
 
-	keyLen, err := ReadUint64(reader)
+	keyLen, err := ReadUint32(reader)
 	if err != nil {
 		return nil, ErrIncompleteEntry
 	}
 
-	valueLen, err := ReadUint64(reader)
+	valueLen, err := ReadUint32(reader)
 	if err != nil {
 		return nil, ErrIncompleteEntry
 	}
@@ -135,12 +135,12 @@ func ReadEntry(r io.ByteReader) (*Entry, error) {
 		Seq:  seq,
 	}
 
-	entry.Key, err = ReadBytes(reader, keyLen)
+	entry.Key, err = ReadBytes(reader, uint64(keyLen))
 	if err != nil {
 		return nil, ErrIncompleteEntry
 	}
 
-	entry.Value, err = ReadBytes(reader, valueLen)
+	entry.Value, err = ReadBytes(reader, uint64(valueLen))
 	if err != nil {
 		return nil, ErrIncompleteEntry
 	}

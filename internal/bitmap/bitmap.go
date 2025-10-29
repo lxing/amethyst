@@ -7,12 +7,12 @@ import (
 // bitmapImpl is a concrete implementation of the Bitmap interface.
 type bitmapImpl struct {
 	data    []byte // Backing storage: each byte stores 8 bits
-	numBits uint64 // Total number of bits in the bitmap
+	numBits uint32 // Total number of bits in the bitmap
 }
 
 // NewBitmap creates a new bitmap with the specified number of bits.
 // All bits are initialized to 0.
-func NewBitmap(numBits uint64) Bitmap {
+func NewBitmap(numBits uint32) Bitmap {
 	// Calculate number of bytes needed: ceil(numBits / 8)
 	numBytes := (numBits + 7) / 8
 	return &bitmapImpl{
@@ -22,7 +22,7 @@ func NewBitmap(numBits uint64) Bitmap {
 }
 
 // NewBitmapFromBytes creates a bitmap from existing byte data.
-func NewBitmapFromBytes(numBits uint64, data []byte) Bitmap {
+func NewBitmapFromBytes(numBits uint32, data []byte) Bitmap {
 	return &bitmapImpl{
 		data:    data,
 		numBits: numBits,
@@ -30,7 +30,7 @@ func NewBitmapFromBytes(numBits uint64, data []byte) Bitmap {
 }
 
 // Add sets the bit at position i to 1 (adds i to the set).
-func (b *bitmapImpl) Add(i uint64) {
+func (b *bitmapImpl) Add(i uint32) {
 	if i >= b.numBits {
 		panic(fmt.Sprintf("bitmap: index %d out of range [0, %d)", i, b.numBits))
 	}
@@ -40,7 +40,7 @@ func (b *bitmapImpl) Add(i uint64) {
 }
 
 // Remove sets the bit at position i to 0 (removes i from the set).
-func (b *bitmapImpl) Remove(i uint64) {
+func (b *bitmapImpl) Remove(i uint32) {
 	if i >= b.numBits {
 		panic(fmt.Sprintf("bitmap: index %d out of range [0, %d)", i, b.numBits))
 	}
@@ -50,7 +50,7 @@ func (b *bitmapImpl) Remove(i uint64) {
 }
 
 // Contains returns true if bit at position i is set (i is in the set).
-func (b *bitmapImpl) Contains(i uint64) bool {
+func (b *bitmapImpl) Contains(i uint32) bool {
 	if i >= b.numBits {
 		panic(fmt.Sprintf("bitmap: index %d out of range [0, %d)", i, b.numBits))
 	}

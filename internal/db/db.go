@@ -19,7 +19,7 @@ var ErrNotFound = errors.New("key not found")
 
 type DB struct {
 	mu        sync.RWMutex
-	nextSeq   uint64
+	nextSeq   uint32
 	memtable  memtable.Memtable
 	wal       wal.WAL
 	manifest  *manifest.Manifest
@@ -47,7 +47,7 @@ func Open(optFns ...Option) (*DB, error) {
 	var m *manifest.Manifest
 	var log wal.WAL
 	var mt memtable.Memtable
-	var nextSeq uint64
+	var nextSeq uint32
 
 	if manifestFile, err := os.Open("MANIFEST"); err == nil {
 		// Recovery path: manifest exists
@@ -116,13 +116,13 @@ func Open(optFns ...Option) (*DB, error) {
 
 // replayWAL replays all entries from the WAL into the memtable.
 // Returns the highest sequence number seen.
-func replayWAL(w wal.WAL, mt memtable.Memtable) (uint64, error) {
+func replayWAL(w wal.WAL, mt memtable.Memtable) (uint32, error) {
 	iter, err := w.Iterator()
 	if err != nil {
 		return 0, err
 	}
 
-	var maxSeq uint64
+	var maxSeq uint32
 	for {
 		entry, err := iter.Next()
 		if err != nil {

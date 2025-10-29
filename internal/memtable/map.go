@@ -9,7 +9,7 @@ import (
 // mapMemtableImpl is the baseline Go map-backed implementation.
 type mapMemtableImpl struct {
 	items map[string]*common.Entry
-	next  uint64
+	next  uint32
 }
 
 var _ Memtable = (*mapMemtableImpl)(nil)

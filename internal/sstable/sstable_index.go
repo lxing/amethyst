@@ -10,7 +10,7 @@ import (
 // Index Block Layout:
 //
 // ┌──────────────────┐
-// │    numEntries    │  uint64
+// │    numEntries    │  uint32
 // ├──────────────────┤
 // │   IndexEntry 0   │
 // ├──────────────────┤
@@ -24,16 +24,16 @@ import (
 // IndexEntry Layout:
 //
 // ┌──────────────────┐
-// │   blockOffset    │  uint64
+// │   blockOffset    │  uint32
 // ├──────────────────┤
-// │      keyLen      │  uint64
+// │      keyLen      │  uint32
 // ├──────────────────┤
 // │       key        │  []byte
 // └──────────────────┘
 
 // IndexEntry represents a single entry in the index block.
 type IndexEntry struct {
-	BlockOffset uint64 // File offset where data block starts
+	BlockOffset uint32 // File offset where data block starts
 	Key         []byte // First key in the data block
 }
 
@@ -42,13 +42,13 @@ type IndexEntry struct {
 func WriteIndexEntry(w io.Writer, e *IndexEntry) (int, error) {
 	total := 0
 
-	n, err := common.WriteUint64(w, e.BlockOffset)
+	n, err := common.WriteUint32(w, e.BlockOffset)
 	total += n
 	if err != nil {
 		return total, err
 	}
 
-	n, err = common.WriteUint64(w, uint64(len(e.Key)))
+	n, err = common.WriteUint32(w, uint32(len(e.Key)))
 	total += n
 	if err != nil {
 		return total, err
@@ -67,15 +67,15 @@ func WriteIndexEntry(w io.Writer, e *IndexEntry) (int, error) {
 
 // ReadIndexEntry reads a single index entry from the reader.
 func ReadIndexEntry(r io.Reader) (*IndexEntry, error) {
-	blockOffset, err := common.ReadUint64(r)
+	blockOffset, err := common.ReadUint32(r)
 	if err != nil {
 		return nil, err
 	}
-	keyLen, err := common.ReadUint64(r)
+	keyLen, err := common.ReadUint32(r)
 	if err != nil {
 		return nil, err
 	}
-	key, err := common.ReadBytes(r, keyLen)
+	key, err := common.ReadBytes(r, uint64(keyLen))
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ type Index struct {
 // FindBlockOffset returns the block offset for the block that may contain the given key.
 // Returns the offset of the block where entries[i].Key <= key < entries[i+1].Key.
 // Returns (0, false) if the key is before the first block's first key.
-func (idx *Index) FindBlockOffset(key []byte) (uint64, bool) {
+func (idx *Index) FindBlockOffset(key []byte) (uint32, bool) {
 	if len(idx.Entries) == 0 {
 		return 0, false
 	}
@@ -125,7 +125,7 @@ func (idx *Index) FindBlockOffset(key []byte) (uint64, bool) {
 func WriteIndex(w io.Writer, idx *Index) (int, error) {
 	total := 0
 
-	n, err := common.WriteUint64(w, uint64(len(idx.Entries)))
+	n, err := common.WriteUint32(w, uint32(len(idx.Entries)))
 	total += n
 	if err != nil {
 		return total, err
@@ -144,12 +144,12 @@ func WriteIndex(w io.Writer, idx *Index) (int, error) {
 
 // ReadIndex reads an entire index block from a reader.
 func ReadIndex(r io.Reader) (*Index, error) {
-	numEntries, err := common.ReadUint64(r)
+	numEntries, err := common.ReadUint32(r)
 	if err != nil {
 		return nil, err
 	}
 	entries := make([]IndexEntry, numEntries)
-	for i := uint64(0); i < numEntries; i++ {
+	for i := uint32(0); i < numEntries; i++ {
 		entry, err := ReadIndexEntry(r)
 		if err != nil {
 			return nil, err

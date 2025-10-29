@@ -42,11 +42,11 @@ type WriteResult struct {
 // WriteSSTable writes a complete SSTable from a stream of sorted entries.
 // Returns metadata about the written SSTable.
 func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, error) {
-	var offset uint64
+	var offset uint32
 	var indexEntries []IndexEntry
 	var blockEntryCount int
-	var totalEntryCount uint64
-	var blockStartOffset uint64
+	var totalEntryCount uint32
+	var blockStartOffset uint32
 	var firstBlockKey []byte
 	var smallestKey []byte
 	var largestKey []byte
@@ -81,7 +81,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 		if err != nil {
 			return nil, err
 		}
-		offset += uint64(n)
+		offset += uint32(n)
 		blockEntryCount++
 		totalEntryCount++
 
@@ -117,7 +117,7 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 	if err != nil {
 		return nil, err
 	}
-	offset += uint64(n)
+	offset += uint32(n)
 
 	// Write footer
 	footer := &Footer{
@@ -129,13 +129,13 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 	if err != nil {
 		return nil, err
 	}
-	offset += uint64(n)
+	offset += uint32(n)
 
 	return &WriteResult{
-		BytesWritten: offset,
+		BytesWritten: uint64(offset),
 		SmallestKey:  smallestKey,
 		LargestKey:   largestKey,
-		EntryCount:   totalEntryCount,
+		EntryCount:   uint64(totalEntryCount),
 	}, nil
 }
 
@@ -263,7 +263,7 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 	// Cache miss or no cache - read from disk
 	if blk == nil {
 		// Determine block size (read until next block or filter block)
-		var blockEnd uint64
+		var blockEnd uint32
 		if blockIdx+1 < len(s.index.Entries) {
 			blockEnd = s.index.Entries[blockIdx+1].BlockOffset
 		} else {
