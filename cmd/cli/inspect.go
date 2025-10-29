@@ -177,6 +177,7 @@ func inspectMemtable(engine *db.DB) {
 }
 
 // renderBoxRow prints boxes side-by-side with ASCII borders and 1 space padding.
+// If there are more than 10 boxes, they wrap to multiple rows.
 // Example output:
 //   LM: ┌──────────────┐ ┌──────────────┐
 //       │ Memtable     │ │ WAL 0.log    │
@@ -187,51 +188,67 @@ func renderBoxRow(label string, boxes [][]string, width int) {
 		return
 	}
 
-	maxLines := 0
-	for _, box := range boxes {
-		if len(box) > maxLines {
-			maxLines = len(box)
+	const maxBoxesPerRow = 10
+
+	// Process boxes in chunks of maxBoxesPerRow
+	for chunkStart := 0; chunkStart < len(boxes); chunkStart += maxBoxesPerRow {
+		chunkEnd := chunkStart + maxBoxesPerRow
+		if chunkEnd > len(boxes) {
+			chunkEnd = len(boxes)
 		}
-	}
+		chunk := boxes[chunkStart:chunkEnd]
 
-	fmt.Printf("%s: ", label)
-
-	// Top borders
-	for i := 0; i < len(boxes); i++ {
-		fmt.Print("┌")
-		for j := 0; j < width+2; j++ {
-			fmt.Print("─")
+		maxLines := 0
+		for _, box := range chunk {
+			if len(box) > maxLines {
+				maxLines = len(box)
+			}
 		}
-		fmt.Print("┐ ")
-	}
-	fmt.Println()
 
-	// Content lines
-	for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
+		// Print label only for first chunk
+		if chunkStart == 0 {
+			fmt.Printf("%s: ", label)
+		} else {
+			fmt.Print("    ")
+		}
+
+		// Top borders
+		for i := 0; i < len(chunk); i++ {
+			fmt.Print("┌")
+			for j := 0; j < width+2; j++ {
+				fmt.Print("─")
+			}
+			fmt.Print("┐ ")
+		}
+		fmt.Println()
+
+		// Content lines
+		for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
+			fmt.Print("    ")
+			for _, box := range chunk {
+				content := ""
+				if lineIdx < len(box) {
+					content = box[lineIdx]
+				}
+				if len(content) > width {
+					content = content[:width]
+				}
+				fmt.Printf("│ %-*s │ ", width, content)
+			}
+			fmt.Println()
+		}
+
+		// Bottom borders
 		fmt.Print("    ")
-		for _, box := range boxes {
-			content := ""
-			if lineIdx < len(box) {
-				content = box[lineIdx]
+		for i := 0; i < len(chunk); i++ {
+			fmt.Print("└")
+			for j := 0; j < width+2; j++ {
+				fmt.Print("─")
 			}
-			if len(content) > width {
-				content = content[:width]
-			}
-			fmt.Printf("│ %-*s │ ", width, content)
+			fmt.Print("┘ ")
 		}
 		fmt.Println()
 	}
-
-	// Bottom borders
-	fmt.Print("    ")
-	for i := 0; i < len(boxes); i++ {
-		fmt.Print("└")
-		for j := 0; j < width+2; j++ {
-			fmt.Print("─")
-		}
-		fmt.Print("┘ ")
-	}
-	fmt.Println()
 }
 
 func inspectAll(engine *db.DB) {
