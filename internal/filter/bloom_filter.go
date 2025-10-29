@@ -103,7 +103,8 @@ func (bf *bloomFilter) hash(key []byte) (uint64, uint64) {
 
 // WriteBloomFilter serializes a bloom filter to a writer.
 // Format: [k: uint32][m: uint32][bitmap data: []byte]
-func WriteBloomFilter(w io.Writer, bf *bloomFilter) (int, error) {
+func WriteBloomFilter(w io.Writer, f Filter) (int, error) {
+	bf := f.(*bloomFilter)
 	total := 0
 
 	// Write k (number of hash functions)

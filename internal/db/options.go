@@ -8,6 +8,7 @@ type Options struct {
 	MaxSSTableLevel        int
 	MaxBatchSize           int
 	BatchTimeout           time.Duration
+	BloomFilterFPR         float64
 }
 
 var DefaultOptions = Options{
@@ -16,6 +17,7 @@ var DefaultOptions = Options{
 	MaxSSTableLevel:        3,
 	MaxBatchSize:           50,
 	BatchTimeout:           5 * time.Millisecond,
+	BloomFilterFPR:         0.01,
 }
 
 type Option func(*Options)
@@ -47,5 +49,11 @@ func WithMaxBatchSize(n int) Option {
 func WithBatchTimeout(d time.Duration) Option {
 	return func(o *Options) {
 		o.BatchTimeout = d
+	}
+}
+
+func WithBloomFilterFPR(fpr float64) Option {
+	return func(o *Options) {
+		o.BloomFilterFPR = fpr
 	}
 }

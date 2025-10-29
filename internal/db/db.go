@@ -312,7 +312,7 @@ func (d *DB) writeSSTable() error {
 	iter := d.memtable.Iterator()
 
 	// Write all entries to SSTable
-	result, err := sstable.WriteSSTable(f, iter)
+	result, err := sstable.WriteSSTable(f, iter, uint32(d.memtable.Len()), d.Opts.BloomFilterFPR)
 	if err != nil {
 		f.Close()
 		return err

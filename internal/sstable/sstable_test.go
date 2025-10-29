@@ -37,7 +37,7 @@ func TestWriteSSTable(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Write SSTable
-	result, err := WriteSSTable(&buf, iter)
+	result, err := WriteSSTable(&buf, iter, 100, 0.01)
 	require.NoError(t, err)
 	require.Greater(t, result.BytesWritten, uint32(0))
 	require.Equal(t, result.BytesWritten, uint32(buf.Len()))
@@ -79,7 +79,7 @@ func TestSSTableReaderBasic(t *testing.T) {
 	require.NoError(t, err)
 
 	iter := &testIterator{entries: entries}
-	_, err = WriteSSTable(f, iter)
+	_, err = WriteSSTable(f, iter, 100, 0.01)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
@@ -139,7 +139,7 @@ func TestSSTableReaderMultipleBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	iter := &testIterator{entries: entries}
-	_, err = WriteSSTable(f, iter)
+	_, err = WriteSSTable(f, iter, 100, 0.01)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
@@ -176,7 +176,7 @@ func TestSSTableReaderTombstone(t *testing.T) {
 	require.NoError(t, err)
 
 	iter := &testIterator{entries: entries}
-	_, err = WriteSSTable(f, iter)
+	_, err = WriteSSTable(f, iter, 100, 0.01)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
@@ -213,7 +213,7 @@ func TestSSTableIterator(t *testing.T) {
 	require.NoError(t, err)
 
 	iter := &testIterator{entries: entries}
-	_, err = WriteSSTable(f, iter)
+	_, err = WriteSSTable(f, iter, 100, 0.01)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 

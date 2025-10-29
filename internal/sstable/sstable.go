@@ -41,7 +41,7 @@ type WriteResult struct {
 
 // WriteSSTable writes a complete SSTable from a stream of sorted entries.
 // Returns metadata about the written SSTable.
-func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, error) {
+func WriteSSTable(w io.Writer, entries common.EntryIterator, sizeHint uint32, fpr float64) (*WriteResult, error) {
 	var offset uint32
 	var indexEntries []IndexEntry
 	var blockEntryCount int
@@ -49,7 +49,11 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 	var blockStartOffset uint32
 	var firstBlockKey []byte
 	var smallestKey []byte
-	var largestKey []byte
+	var largestKeyRef []byte
+
+	// Create bloom filter
+	k, m := filter.OptimalBloomFilterParams(sizeHint, fpr)
+	bloomFilter := filter.NewBloomFilter(k, m)
 
 	// Stream data blocks
 	for {
@@ -66,8 +70,11 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 			smallestKey = bytes.Clone(entry.Key)
 		}
 
-		// Track largest key (last entry seen)
-		largestKey = bytes.Clone(entry.Key)
+		// Track largest key reference (clone after loop)
+		largestKeyRef = entry.Key
+
+		// Add to bloom filter
+		bloomFilter.Add(entry.Key)
 
 		// Start new block: record offset and first key
 		if blockEntryCount == 0 {
@@ -106,14 +113,21 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator) (*WriteResult, erro
 		indexEntries = append(indexEntries, indexEntry)
 	}
 
-	// Write filter block (placeholder)
+	// Clone largest key now that iteration is complete
+	largestKey := bytes.Clone(largestKeyRef)
+
+	// Write filter block
 	filterOffset := offset
-	// TODO: Implement bloom filter
+	n, err := filter.WriteBloomFilter(w, bloomFilter)
+	if err != nil {
+		return nil, err
+	}
+	offset += uint32(n)
 
 	// Write index block
 	indexOffset := offset
 	index := &Index{Entries: indexEntries}
-	n, err := WriteIndex(w, index)
+	n, err = WriteIndex(w, index)
 	if err != nil {
 		return nil, err
 	}
@@ -177,9 +191,19 @@ func loadSSTableMetadata(f *os.File) (*Footer, filter.Filter, *Index, error) {
 		return nil, nil, nil, err
 	}
 
-	// TODO: Read filter block from footer.FilterOffset to footer.IndexOffset
-	// For now, filter is unimplemented (just a placeholder offset in footer)
+	// Read filter block
+	filterSize := int64(footer.IndexOffset) - int64(footer.FilterOffset)
 	var bloomFilter filter.Filter = nil
+	if filterSize > 0 {
+		filterData := make([]byte, filterSize)
+		if _, err := f.ReadAt(filterData, int64(footer.FilterOffset)); err != nil {
+			return nil, nil, nil, err
+		}
+		bloomFilter, err = filter.ReadBloomFilter(bytes.NewReader(filterData))
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
 
 	// Read index block
 	indexSize := footerOffset - int64(footer.IndexOffset)
@@ -231,6 +255,12 @@ func OpenSSTable(
 // Get looks up the entry for the given key.
 // Returns ErrNotFound if the key does not exist.
 func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
+	// Check bloom filter first to skip disk read if key definitely not present
+	if s.filter != nil && !s.filter.MayContain(key) {
+		common.Logf("      filter rejected key\n")
+		return nil, ErrNotFound
+	}
+
 	// Find which block might contain this key
 	blockOffset, found := s.index.FindBlockOffset(key)
 	if !found {
