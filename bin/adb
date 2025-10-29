@@ -1,0 +1,15 @@
+#!/bin/bash
+# adb - Amethyst DB CLI wrapper that rebuilds on each invocation
+
+set -e
+
+# Get the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Build the CLI binary
+cd "$PROJECT_ROOT"
+go build -o bin/amethyst-cli ./cmd/cli
+
+# Run with all arguments passed through
+exec "$SCRIPT_DIR/amethyst-cli" "$@"

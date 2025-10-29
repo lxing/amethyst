@@ -1,5 +1,8 @@
-# Ignore runtime directory (contains binaries and data)
-/bin/
+# Ignore runtime directory contents (contains binaries and data)
+/bin/*
+
+# But track the adb wrapper script
+!/bin/adb
 
 # Go build cache
 .gocache/
