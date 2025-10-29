@@ -1,7 +1,6 @@
 package bitmap
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -131,7 +130,7 @@ func TestBoundsChecking(t *testing.T) {
 	}, "Remove(64) should panic")
 }
 
-func TestWriteAndReadBitmap(t *testing.T) {
+func TestBytesAndFromBytes(t *testing.T) {
 	// Create and populate a bitmap
 	original := NewBitmap(100)
 	positions := map[uint64]struct{}{
@@ -141,18 +140,13 @@ func TestWriteAndReadBitmap(t *testing.T) {
 		original.Add(pos)
 	}
 
-	// Write to buffer
-	var buf bytes.Buffer
-	n, err := WriteBitmap(&buf, original.(*bitmapImpl))
-	require.NoError(t, err, "WriteBitmap failed")
+	// Get bytes
+	data := original.Bytes()
+	expectedSize := (100 + 7) / 8 // 13 bytes
+	require.Equal(t, int(expectedSize), len(data), "Bytes() length")
 
-	// Check bytes written
-	expectedSize := 8 + (100+7)/8 // 8 bytes numBits + 13 bytes data
-	require.Equal(t, expectedSize, n, "WriteBitmap bytes written")
-
-	// Read back
-	restored, err := ReadBitmap(&buf)
-	require.NoError(t, err, "ReadBitmap failed")
+	// Reconstruct from bytes
+	restored := NewBitmapFromBytes(100, data)
 
 	// Verify all bits match
 	for i := uint64(0); i < 100; i++ {

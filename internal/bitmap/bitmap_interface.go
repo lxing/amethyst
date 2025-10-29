@@ -11,4 +11,7 @@ type Bitmap interface {
 
 	// Contains returns true if bit at position i is set (i is in the set).
 	Contains(i uint64) bool
+
+	// Bytes returns the underlying byte array.
+	Bytes() []byte
 }

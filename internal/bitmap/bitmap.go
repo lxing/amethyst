@@ -2,9 +2,6 @@ package bitmap
 
 import (
 	"fmt"
-	"io"
-
-	"amethyst/internal/common"
 )
 
 // bitmapImpl is a concrete implementation of the Bitmap interface.
@@ -20,6 +17,14 @@ func NewBitmap(numBits uint64) Bitmap {
 	numBytes := (numBits + 7) / 8
 	return &bitmapImpl{
 		data:    make([]byte, numBytes),
+		numBits: numBits,
+	}
+}
+
+// NewBitmapFromBytes creates a bitmap from existing byte data.
+func NewBitmapFromBytes(numBits uint64, data []byte) Bitmap {
+	return &bitmapImpl{
+		data:    data,
 		numBits: numBits,
 	}
 }
@@ -54,49 +59,7 @@ func (b *bitmapImpl) Contains(i uint64) bool {
 	return (b.data[byteIdx] & (1 << bitIdx)) != 0
 }
 
-// WriteBitmap serializes a bitmap to a writer.
-// Format: [8 bytes: numBits][data bytes]
-// Returns the number of bytes written.
-func WriteBitmap(w io.Writer, b *bitmapImpl) (int, error) {
-	total := 0
-
-	// Write numBits (8 bytes)
-	n, err := common.WriteUint64(w, b.numBits)
-	total += n
-	if err != nil {
-		return total, err
-	}
-
-	// Write data bytes
-	n, err = common.WriteBytes(w, b.data)
-	total += n
-	if err != nil {
-		return total, err
-	}
-
-	return total, nil
-}
-
-// ReadBitmap deserializes a bitmap from a reader.
-// Format: [8 bytes: numBits][data bytes]
-func ReadBitmap(r io.Reader) (Bitmap, error) {
-	// Read numBits (8 bytes)
-	numBits, err := common.ReadUint64(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Calculate expected data size
-	numBytes := (numBits + 7) / 8
-
-	// Read data bytes
-	data, err := common.ReadBytes(r, numBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return &bitmapImpl{
-		data:    data,
-		numBits: numBits,
-	}, nil
+// Bytes returns the underlying byte array.
+func (b *bitmapImpl) Bytes() []byte {
+	return b.data
 }
