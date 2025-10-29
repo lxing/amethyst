@@ -179,14 +179,18 @@ func inspectMemtable(engine *db.DB) {
 // renderBoxRow prints boxes side-by-side with ASCII borders and 1 space padding.
 // If there are more than 10 boxes, they wrap to multiple rows.
 // Example output:
-//   LM: ┌──────────────┐ ┌──────────────┐
-//       │ Memtable     │ │ WAL 0.log    │
-//       │ 5 entries    │ │ 5 entries    │
-//       └──────────────┘ └──────────────┘
-func renderBoxRow(label string, boxes [][]string, width int) {
+//   L0: 1500 entries
+//   ┌──────────────┐ ┌──────────────┐
+//   │ 0.sst        │ │ 1.sst        │
+//   │ 300 entries  │ │ 300 entries  │
+//   └──────────────┘ └──────────────┘
+func renderBoxRow(label string, totalEntries int, boxes [][]string, width int) {
 	if len(boxes) == 0 {
 		return
 	}
+
+	// Print label and total entry count above boxes
+	fmt.Printf("%s: %d entries\n", label, totalEntries)
 
 	const maxBoxesPerRow = 10
 
@@ -205,13 +209,6 @@ func renderBoxRow(label string, boxes [][]string, width int) {
 			}
 		}
 
-		// Print label only for first chunk
-		if chunkStart == 0 {
-			fmt.Printf("%s: ", label)
-		} else {
-			fmt.Print("    ")
-		}
-
 		// Top borders
 		for i := 0; i < len(chunk); i++ {
 			fmt.Print("┌")
@@ -224,7 +221,6 @@ func renderBoxRow(label string, boxes [][]string, width int) {
 
 		// Content lines
 		for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
-			fmt.Print("    ")
 			for _, box := range chunk {
 				content := ""
 				if lineIdx < len(box) {
@@ -239,7 +235,6 @@ func renderBoxRow(label string, boxes [][]string, width int) {
 		}
 
 		// Bottom borders
-		fmt.Print("    ")
 		for i := 0; i < len(chunk); i++ {
 			fmt.Print("└")
 			for j := 0; j < width+2; j++ {
@@ -259,6 +254,7 @@ func inspectAll(engine *db.DB) {
 	// LM: Memory level
 	memCount := engine.Memtable().Len()
 	walCount := engine.WAL().Len()
+	totalLMEntries := memCount + walCount
 
 	memBox := []string{
 		"Memtable",
@@ -268,7 +264,7 @@ func inspectAll(engine *db.DB) {
 		fmt.Sprintf("WAL %d.log", version.CurrentWAL),
 		fmt.Sprintf("%d entries", walCount),
 	}
-	renderBoxRow("LM", [][]string{memBox, walBox}, boxWidth)
+	renderBoxRow("LM", totalLMEntries, [][]string{memBox, walBox}, boxWidth)
 
 	// Each SSTable level
 	for level, fileMetas := range version.Levels {
@@ -278,6 +274,7 @@ func inspectAll(engine *db.DB) {
 		}
 
 		var boxes [][]string
+		var totalLevelEntries int
 		for _, fm := range fileMetas {
 			table, err := engine.Manifest().GetTable(fm.FileNo, level)
 			if err != nil {
@@ -289,6 +286,7 @@ func inspectAll(engine *db.DB) {
 			}
 
 			entryCount := table.Len()
+			totalLevelEntries += entryCount
 
 			firstKey := string(fm.SmallestKey)
 			lastKey := string(fm.LargestKey)
@@ -301,7 +299,7 @@ func inspectAll(engine *db.DB) {
 			})
 		}
 
-		renderBoxRow(fmt.Sprintf("L%d", level), boxes, boxWidth)
+		renderBoxRow(fmt.Sprintf("L%d", level), totalLevelEntries, boxes, boxWidth)
 	}
 }
 
