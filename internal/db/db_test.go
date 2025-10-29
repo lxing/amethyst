@@ -9,17 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func cleanupDB(t *testing.T, dbPath string) {
-	t.Helper()
-	os.RemoveAll(dbPath)
-}
-
 func TestWALRotation(t *testing.T) {
 	testDir := t.TempDir()
-	defer cleanupDB(t, testDir)
 
 	// Create DB with low memtable flush threshold
-	d, err := db.Open(db.WithMemtableFlushThreshold(5), db.WithDBPath(testDir))
+	d, err := db.Open(db.WithDBPath(testDir), db.WithMemtableFlushThreshold(5))
 	require.NoError(t, err)
 
 	// Write 4 entries (below threshold)
@@ -62,10 +56,9 @@ func TestWALRotation(t *testing.T) {
 
 func TestSSTableReadAfterFlush(t *testing.T) {
 	testDir := t.TempDir()
-	defer cleanupDB(t, testDir)
 
 	// Create DB with low memtable flush threshold to trigger flush
-	d, err := db.Open(db.WithMemtableFlushThreshold(3), db.WithDBPath(testDir))
+	d, err := db.Open(db.WithDBPath(testDir), db.WithMemtableFlushThreshold(3))
 	require.NoError(t, err)
 
 	// Write 3 entries (reaches threshold)
@@ -112,11 +105,8 @@ func TestSSTableReadAfterFlush(t *testing.T) {
 }
 
 func TestSSTableWithDeletes(t *testing.T) {
-	testDir := t.TempDir()
-	defer cleanupDB(t, testDir)
-
 	// Create DB
-	d, err := db.Open(db.WithMemtableFlushThreshold(5), db.WithDBPath(testDir))
+	d, err := db.Open(db.WithDBPath(t.TempDir()), db.WithMemtableFlushThreshold(5))
 	require.NoError(t, err)
 
 	// Write and delete in same memtable
@@ -148,10 +138,9 @@ func TestSSTableWithDeletes(t *testing.T) {
 
 func TestL0IterationOrder(t *testing.T) {
 	testDir := t.TempDir()
-	defer cleanupDB(t, testDir)
 
 	// Create DB with threshold of 2 entries to trigger multiple L0 flushes
-	d, err := db.Open(db.WithMemtableFlushThreshold(2), db.WithDBPath(testDir))
+	d, err := db.Open(db.WithDBPath(testDir), db.WithMemtableFlushThreshold(2))
 	require.NoError(t, err)
 
 	// Write key "apple" with value "v1", then flush
