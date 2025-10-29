@@ -253,7 +253,6 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 		}
 	}
 
-	common.Logf("get key=%q: not found\n", string(key))
 	return nil, ErrNotFound
 }
 
