@@ -66,6 +66,41 @@ func WriteSSTable(
 	var firstBlockKey []byte
 	var blockStartOffset uint32
 
+	// Flush current block: write offset footer and add to index
+	flushBlock := func() error {
+		if len(blockOffsets) == 0 {
+			return nil
+		}
+
+		// Write offset footer
+		for _, off := range blockOffsets {
+			n, err := common.WriteUint16(w, off)
+			if err != nil {
+				return err
+			}
+			offset += uint32(n)
+		}
+
+		// Write num_entries
+		n, err := common.WriteUint16(w, uint16(len(blockOffsets)))
+		if err != nil {
+			return err
+		}
+		offset += uint32(n)
+
+		// Add index entry
+		indexEntries = append(indexEntries, IndexEntry{
+			BlockOffset: blockStartOffset,
+			Key:         firstBlockKey,
+		})
+
+		// Reset for next block
+		blockOffsets = nil
+		firstBlockKey = nil
+
+		return nil
+	}
+
 	// Stream entries and build blocks
 	for {
 		entry, err := entries.Next()
@@ -86,31 +121,9 @@ func WriteSSTable(
 
 		// Flush block when full (before starting new one)
 		if len(blockOffsets) >= block.BLOCK_SIZE {
-			// Write offset footer for completed block
-			for _, off := range blockOffsets {
-				n, err := common.WriteUint16(w, off)
-				if err != nil {
-					return nil, err
-				}
-				offset += uint32(n)
-			}
-
-			// Write num_entries
-			n, err := common.WriteUint16(w, uint16(len(blockOffsets)))
-			if err != nil {
+			if err := flushBlock(); err != nil {
 				return nil, err
 			}
-			offset += uint32(n)
-
-			// Add index entry
-			indexEntries = append(indexEntries, IndexEntry{
-				BlockOffset: blockStartOffset,
-				Key:         firstBlockKey,
-			})
-
-			// Reset for next block
-			blockOffsets = nil
-			firstBlockKey = nil
 		}
 
 		// Start new block if needed
@@ -132,28 +145,8 @@ func WriteSSTable(
 	}
 
 	// Flush last partial block if any
-	if len(blockOffsets) > 0 {
-		// Write offset footer
-		for _, off := range blockOffsets {
-			n, err := common.WriteUint16(w, off)
-			if err != nil {
-				return nil, err
-			}
-			offset += uint32(n)
-		}
-
-		// Write num_entries
-		n, err := common.WriteUint16(w, uint16(len(blockOffsets)))
-		if err != nil {
-			return nil, err
-		}
-		offset += uint32(n)
-
-		// Add index entry
-		indexEntries = append(indexEntries, IndexEntry{
-			BlockOffset: blockStartOffset,
-			Key:         firstBlockKey,
-		})
+	if err := flushBlock(); err != nil {
+		return nil, err
 	}
 
 	// Clone largest key now that iteration is complete
