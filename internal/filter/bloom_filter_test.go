@@ -32,8 +32,7 @@ func TestBloomFilterFalsePositiveRate(t *testing.T) {
 
 	// Compute optimal parameters
 	k, m := OptimalBloomFilterParams(n, p)
-	bf := NewBloomFilter(k, m).(*bloomFilter)
-
+	bf := NewBloomFilter(k, m)
 	// Add n keys (using format "key-%d")
 	for i := uint32(0); i < n; i++ {
 		key := []byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
@@ -64,8 +63,7 @@ func TestBloomFilterFalsePositiveRate(t *testing.T) {
 }
 
 func TestBloomFilterAddAndMayContain(t *testing.T) {
-	bf := NewBloomFilter(3, 1000).(*bloomFilter)
-
+	bf := NewBloomFilter(3, 1000)
 	// Test keys
 	keys := [][]byte{
 		[]byte("key1"),
@@ -100,8 +98,7 @@ func TestBloomFilterAddAndMayContain(t *testing.T) {
 }
 
 func TestBloomFilterNoFalseNegatives(t *testing.T) {
-	bf := NewBloomFilter(5, 10000).(*bloomFilter)
-
+	bf := NewBloomFilter(5, 10000)
 	// Add a large number of keys
 	keys := make([][]byte, 100)
 	for i := 0; i < 100; i++ {
@@ -117,7 +114,7 @@ func TestBloomFilterNoFalseNegatives(t *testing.T) {
 
 func TestBloomFilterWriteAndRead(t *testing.T) {
 	// Create and populate a bloom filter
-	original := NewBloomFilter(4, 1000).(*bloomFilter)
+	original := NewBloomFilter(4, 1000)
 	keys := [][]byte{
 		[]byte("key1"),
 		[]byte("key2"),
@@ -148,7 +145,7 @@ func TestBloomFilterWriteAndRead(t *testing.T) {
 
 func TestBloomFilterFromBytes(t *testing.T) {
 	// Create and populate original
-	original := NewBloomFilter(3, 500).(*bloomFilter)
+	original := NewBloomFilter(3, 500)
 	keys := [][]byte{
 		[]byte("alpha"),
 		[]byte("beta"),
@@ -162,8 +159,7 @@ func TestBloomFilterFromBytes(t *testing.T) {
 	data := original.bitmap.Bytes()
 
 	// Reconstruct from bytes
-	restored := NewBloomFilterFromBytes(3, 500, data).(*bloomFilter)
-
+	restored := NewBloomFilterFromBytes(3, 500, data)
 	// Verify parameters
 	require.Equal(t, original.k, restored.k, "k should match")
 	require.Equal(t, original.m, restored.m, "m should match")
@@ -175,8 +171,7 @@ func TestBloomFilterFromBytes(t *testing.T) {
 }
 
 func TestBloomFilterHash(t *testing.T) {
-	bf := NewBloomFilter(2, 100).(*bloomFilter)
-
+	bf := NewBloomFilter(2, 100)
 	// Test that hash produces consistent results
 	key := []byte("testkey")
 	h1a, h2a := bf.hash(key)

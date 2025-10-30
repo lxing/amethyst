@@ -195,7 +195,7 @@ type sstableImpl struct {
 	path       string // File path (stored for error messages)
 	fileNo     common.FileNo
 	footer     *Footer
-	filter     filter.Filter
+	filter     *filter.BloomFilter
 	index      *Index
 	blockCache block_cache.BlockCache
 }
@@ -203,7 +203,7 @@ type sstableImpl struct {
 var _ SSTable = (*sstableImpl)(nil)
 
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
-func loadSSTableMetadata(f *os.File) (*Footer, filter.Filter, *Index, error) {
+func loadSSTableMetadata(f *os.File) (*Footer, *filter.BloomFilter, *Index, error) {
 	// Get file size
 	stat, err := f.Stat()
 	if err != nil {
@@ -229,7 +229,7 @@ func loadSSTableMetadata(f *os.File) (*Footer, filter.Filter, *Index, error) {
 
 	// Read filter block
 	filterSize := int64(footer.IndexOffset) - int64(footer.FilterOffset)
-	var bloomFilter filter.Filter
+	var bloomFilter *filter.BloomFilter
 	if filterSize > 0 {
 		filterData := make([]byte, filterSize)
 		if _, err := f.ReadAt(filterData, int64(footer.FilterOffset)); err != nil {
