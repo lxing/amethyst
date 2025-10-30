@@ -2,12 +2,15 @@ package memtable
 
 import (
 	"sort"
+	"sync"
 
 	"amethyst/internal/common"
 )
 
 // mapMemtableImpl is the baseline Go map-backed implementation.
+// Thread-safe for concurrent reads and writes.
 type mapMemtableImpl struct {
+	mu    sync.RWMutex
 	items map[string]*common.Entry
 	next  uint32
 }
@@ -23,6 +26,8 @@ func NewMapMemtable() Memtable {
 
 // Put records or overwrites a key/value pair using the provided key and value.
 func (m *mapMemtableImpl) Put(key, value []byte) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.next++
 	m.items[string(key)] = &common.Entry{
 		Type:  common.EntryTypePut,
@@ -33,6 +38,8 @@ func (m *mapMemtableImpl) Put(key, value []byte) {
 
 // Delete installs a tombstone for the given key.
 func (m *mapMemtableImpl) Delete(key []byte) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.next++
 	m.items[string(key)] = &common.Entry{
 		Type: common.EntryTypeDelete,
@@ -42,6 +49,8 @@ func (m *mapMemtableImpl) Delete(key []byte) {
 
 // Get returns the most recent entry for key, if any.
 func (m *mapMemtableImpl) Get(key []byte) (*common.Entry, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	entry, ok := m.items[string(key)]
 	if !ok {
 		return nil, false
@@ -57,6 +66,9 @@ func (m *mapMemtableImpl) Get(key []byte) (*common.Entry, bool) {
 
 // Iterator returns a stable snapshot iterator over the current entries.
 func (m *mapMemtableImpl) Iterator() common.EntryIterator {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	keys := make([]string, 0, len(m.items))
 	for k := range m.items {
 		keys = append(keys, k)
@@ -73,6 +85,8 @@ func (m *mapMemtableImpl) Iterator() common.EntryIterator {
 
 // Len returns the number of entries in the memtable.
 func (m *mapMemtableImpl) Len() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return len(m.items)
 }
 

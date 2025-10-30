@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"amethyst/internal/block_cache"
@@ -19,11 +19,14 @@ import (
 var ErrNotFound = errors.New("key not found")
 
 type DB struct {
-	mu        sync.RWMutex
-	nextSeq   uint32
-	memtable  memtable.Memtable
-	wal       *wal.WAL
-	manifest  *manifest.Manifest
+	nextSeq uint32
+
+	// Only memtable is concurrently read/written.
+	// However, adb cli helpers will occasionally read wal/manifest directly so we protect them.
+	memtable atomic.Pointer[memtable.Memtable]
+	wal      atomic.Pointer[*wal.WAL]
+	manifest atomic.Pointer[*manifest.Manifest]
+
 	Opts      Options
 	paths     *common.PathManager
 	writeChan chan *writeRequest
@@ -110,13 +113,13 @@ func Open(optFns ...Option) (*DB, error) {
 
 	db := &DB{
 		nextSeq:   nextSeq,
-		memtable:  mt,
-		wal:       log,
-		manifest:  m,
 		Opts:      opts,
 		paths:     paths,
 		writeChan: make(chan *writeRequest, 100),
 	}
+	db.memtable.Store(&mt)
+	db.wal.Store(&log)
+	db.manifest.Store(&m)
 
 	// Start background group commit loop
 	go db.groupCommitLoop()
@@ -199,12 +202,10 @@ func (d *DB) Delete(key []byte) error {
 }
 
 func (d *DB) Get(key []byte) ([]byte, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
 	common.Logf("get key=%q\n", string(key))
 	common.Logf("  checking memtable\n")
-	entry, ok := d.memtable.Get(key)
+	mt := *d.memtable.Load()
+	entry, ok := mt.Get(key)
 	if ok {
 		if entry.Type == common.EntryTypeDelete {
 			common.Logf("  found tombstone in memtable\n")
@@ -214,7 +215,7 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 		return bytes.Clone(entry.Value), nil
 	}
 
-	version := d.manifest.Current()
+	version := (*d.manifest.Load()).Current()
 	for level, fileMetas := range version.Levels {
 		common.Logf("  checking L%d (%d files)\n", level, len(fileMetas))
 
@@ -234,7 +235,7 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 		// L1+ files are non-overlapping within a level, so we can binary search
 		// by key range to find the single file that might contain the key.
 		for _, fm := range files {
-			table, err := d.manifest.GetTable(fm.FileNo, level)
+			table, err := (*d.manifest.Load()).GetTable(fm.FileNo, level)
 			if err != nil {
 				continue
 			}
@@ -260,13 +261,14 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 }
 
 // flushMemtable writes the current memtable to an SSTable and rotates the WAL.
-// Must be called with d.mu held.
+// Called from single-threaded processBatch, outside any lock.
 func (d *DB) flushMemtable() error {
-	v := d.manifest.Current()
+	m := *d.manifest.Load()
+	v := m.Current()
 	newWALNum := v.NextWALNumber
 
 	// 1. Close old WAL (no more writes needed)
-	d.wal.Close()
+	(*d.wal.Load()).Close()
 
 	// 2. Create new WAL file
 	newWALPath := d.paths.WALPath(newWALNum)
@@ -281,27 +283,29 @@ func (d *DB) flushMemtable() error {
 	}
 
 	// 4. Update manifest (atomic commit point)
-	d.manifest.SetWAL(newWALNum)
+	m.SetWAL(newWALNum)
 
 	// 5. Persist manifest to disk (makes new files visible)
-	if err := d.manifest.Flush(); err != nil {
+	if err := m.Flush(); err != nil {
 		return err
 	}
 
-	// 6. Swap to new WAL and new memtable
-	d.wal = newWAL
-	d.memtable = memtable.NewMapMemtable()
+	// 6. Swap to new WAL and new memtable (atomic pointer swaps)
+	d.wal.Store(&newWAL)
+	newMemtable := memtable.NewMapMemtable()
+	d.memtable.Store(&newMemtable)
 
 	return nil
 }
 
 // writeSSTable writes the current memtable to an SSTable file.
-// Must be called with d.mu held.
+// Called from flushMemtable during single-threaded flush.
 func (d *DB) writeSSTable() error {
 	start := time.Now()
 
 	// Get next SSTable number from manifest
-	v := d.manifest.Current()
+	m := *d.manifest.Load()
+	v := m.Current()
 	fileNo := v.NextSSTableNumber
 
 	// Create SSTable file in L0
@@ -312,10 +316,11 @@ func (d *DB) writeSSTable() error {
 	}
 
 	// Get sorted entries from memtable
-	iter := d.memtable.Iterator()
+	mt := *d.memtable.Load()
+	iter := mt.Iterator()
 
 	// Write all entries to SSTable
-	result, err := sstable.WriteSSTable(f, iter, uint32(d.memtable.Len()), d.Opts.BloomFilterFPR)
+	result, err := sstable.WriteSSTable(f, iter, uint32(mt.Len()), d.Opts.BloomFilterFPR)
 	if err != nil {
 		f.Close()
 		return err
@@ -337,28 +342,22 @@ func (d *DB) writeSSTable() error {
 			},
 		},
 	}
-	d.manifest.Apply(edit)
+	m.Apply(edit)
 
 	common.LogDuration(start, "  flushed %d entries to %d.sst", result.EntryCount, fileNo)
 	return nil
 }
 
 func (d *DB) Memtable() memtable.Memtable {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.memtable
+	return *d.memtable.Load()
 }
 
 func (d *DB) WAL() *wal.WAL {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.wal
+	return *d.wal.Load()
 }
 
 func (d *DB) Manifest() *manifest.Manifest {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.manifest
+	return *d.manifest.Load()
 }
 
 func (d *DB) Paths() *common.PathManager {
@@ -368,13 +367,9 @@ func (d *DB) Paths() *common.PathManager {
 // Close stops all database operations and releases resources.
 // Currently a stub for future cleanup (closing WAL, flushing buffers, etc.)
 func (d *DB) Close() error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	// TODO: Close WAL
 	// TODO: Close manifest (which closes table cache)
 	// TODO: Flush any pending writes
 
 	return nil
 }
-

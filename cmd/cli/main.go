@@ -66,12 +66,11 @@ func main() {
 	// Disable logging initially to prevent noise during startup
 	common.LoggingEnabled = false
 
-	// Get database path from command line args
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: %s <db-path>\n", os.Args[0])
-		os.Exit(1)
+	// Get database path from command line args (default to "data/adb")
+	dbPath := "data/adb"
+	if len(os.Args) >= 2 {
+		dbPath = os.Args[1]
 	}
-	dbPath := os.Args[1]
 
 	engine, err := db.Open(db.WithDBPath(dbPath))
 	if err != nil {

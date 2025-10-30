@@ -12,15 +12,14 @@ type writeRequest struct {
 	resultCh chan error
 }
 
-// processBatch processes a batch of write requests under the DB lock.
-// It handles flushing, sequence assignment, WAL writes, and memtable updates.
-// Returns an error if any step fails.
+// Locking rationale:
+// - processBatch is single-threaded via groupCommitLoop
+// - d.memtable/d.wal/d.manifest use atomic.Pointer for lock-free access
+// - memtable is internally thread-safe with its own lock
+// - d.nextSeq doesn't need lock (single writer)
 func (d *DB) processBatch(batch []*writeRequest) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	// Check if flush needed (synchronous, under lock)
-	if d.memtable.Len() >= d.Opts.MemtableFlushThreshold {
+	// Check if flush needed (read-only on memtable)
+	if d.Memtable().Len() >= d.Opts.MemtableFlushThreshold {
 		if err := d.flushMemtable(); err != nil {
 			return err
 		}
@@ -35,17 +34,18 @@ func (d *DB) processBatch(batch []*writeRequest) error {
 	}
 
 	// Write entire batch to WAL with single sync
-	if err := d.wal.WriteEntry(entries); err != nil {
+	if err := d.WAL().WriteEntry(entries); err != nil {
 		return err
 	}
 
-	// Update memtable
+	// Update memtable (memtable internally locks for thread-safety)
+	mt := d.Memtable()
 	for _, req := range batch {
 		switch req.entry.Type {
 		case common.EntryTypePut:
-			d.memtable.Put(req.entry.Key, req.entry.Value)
+			mt.Put(req.entry.Key, req.entry.Value)
 		case common.EntryTypeDelete:
-			d.memtable.Delete(req.entry.Key)
+			mt.Delete(req.entry.Key)
 		}
 	}
 

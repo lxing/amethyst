@@ -13,7 +13,7 @@ type Options struct {
 }
 
 var DefaultOptions = Options{
-	DBPath:                 "bin",
+	DBPath:                 "data/adb",
 	MemtableFlushThreshold: 256,
 	MaxSSTableLevel:        3,
 	MaxBatchSize:           50,
