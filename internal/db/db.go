@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"amethyst/internal/block_cache"
 	"amethyst/internal/common"
 	"amethyst/internal/manifest"
 	"amethyst/internal/memtable"
@@ -47,6 +48,9 @@ func Open(optFns ...Option) (*DB, error) {
 		}
 	}
 
+	// Create block cache shared by all SSTables
+	blockCache := block_cache.NewBlockCache(opts.BlockCacheSize)
+
 	// Try to load existing manifest
 	var m *manifest.Manifest
 	var log *wal.WAL
@@ -63,7 +67,7 @@ func Open(optFns ...Option) (*DB, error) {
 			return nil, fmt.Errorf("failed to read manifest: %w", err)
 		}
 
-		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1, opts.BlockCacheSize)
+		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1, blockCache)
 		m.LoadVersion(version)
 
 		// Open existing WAL for recovery
@@ -84,7 +88,7 @@ func Open(optFns ...Option) (*DB, error) {
 		common.Logf("recovered from manifest: wal=%d seq=%d\n", version.CurrentWAL, nextSeq)
 	} else {
 		// Fresh DB path: no manifest
-		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1, opts.BlockCacheSize)
+		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1, blockCache)
 
 		// Create initial WAL
 		walPath := paths.WALPath(m.Current().NextWALNumber)

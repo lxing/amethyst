@@ -66,13 +66,13 @@ type Manifest struct {
 }
 
 // NewManifest creates a new manifest with the given number of levels.
-func NewManifest(paths *common.PathManager, numLevels int, blockCacheSize int) *Manifest {
+func NewManifest(paths *common.PathManager, numLevels int, blockCache *block_cache.BlockCache) *Manifest {
 	return &Manifest{
 		current: &Version{
 			Levels: make([][]FileMetadata, numLevels),
 		},
 		tableCache: make(map[common.FileNo]*sstable.SSTable),
-		blockCache: block_cache.NewBlockCache(blockCacheSize),
+		blockCache: blockCache,
 		paths:      paths,
 	}
 }

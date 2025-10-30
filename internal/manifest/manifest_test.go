@@ -3,6 +3,7 @@ package manifest
 import (
 	"testing"
 
+	"amethyst/internal/block_cache"
 	"amethyst/internal/common"
 
 	"github.com/stretchr/testify/require"
@@ -10,7 +11,8 @@ import (
 
 func TestNewManifest(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	m := NewManifest(paths, 7, 100)
+	cache := block_cache.NewBlockCache(100)
+	m := NewManifest(paths, 7, cache)
 	v := m.Current()
 	require.NotNil(t, v)
 	require.Equal(t, 7, len(v.Levels))
@@ -21,7 +23,8 @@ func TestNewManifest(t *testing.T) {
 
 func TestSetWAL(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	m := NewManifest(paths, 7, 100)
+	cache := block_cache.NewBlockCache(100)
+	m := NewManifest(paths, 7, cache)
 
 	// Set initial WAL
 	m.SetWAL(1)
@@ -38,7 +41,8 @@ func TestSetWAL(t *testing.T) {
 
 func TestApplyCompactionEdit(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	m := NewManifest(paths, 7, 100)
+	cache := block_cache.NewBlockCache(100)
+	m := NewManifest(paths, 7, cache)
 
 	// Add tables to L0 and L1
 	edit1 := &CompactionEdit{
@@ -80,7 +84,8 @@ func TestApplyCompactionEdit(t *testing.T) {
 
 func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	m := NewManifest(paths, 7, 100)
+	cache := block_cache.NewBlockCache(100)
+	m := NewManifest(paths, 7, cache)
 
 	// Add initial L0 and L1 tables
 	edit1 := &CompactionEdit{
@@ -136,7 +141,8 @@ func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 
 func TestVersionIsolation(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	m := NewManifest(paths, 7, 100)
+	cache := block_cache.NewBlockCache(100)
+	m := NewManifest(paths, 7, cache)
 
 	// Add initial tables
 	edit1 := &CompactionEdit{
@@ -177,7 +183,8 @@ func TestVersionIsolation(t *testing.T) {
 
 func TestNextSSTableNumberPreservation(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	m := NewManifest(paths, 7, 100)
+	cache := block_cache.NewBlockCache(100)
+	m := NewManifest(paths, 7, cache)
 
 	// Add tables with high file numbers
 	edit := &CompactionEdit{
