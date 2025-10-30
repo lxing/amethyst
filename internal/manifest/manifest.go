@@ -56,7 +56,7 @@ type Manifest struct {
 	current *Version
 
 	// Table cache: shared pool of open SSTable handles
-	tableCache map[common.FileNo]sstable.SSTable
+	tableCache map[common.FileNo]*sstable.SSTable
 
 	// Block cache: shared across all SSTables
 	blockCache *block_cache.BlockCache
@@ -71,7 +71,7 @@ func NewManifest(paths *common.PathManager, numLevels int) *Manifest {
 		current: &Version{
 			Levels: make([][]FileMetadata, numLevels),
 		},
-		tableCache: make(map[common.FileNo]sstable.SSTable),
+		tableCache: make(map[common.FileNo]*sstable.SSTable),
 		blockCache: block_cache.NewBlockCache(),
 		paths:      paths,
 	}
@@ -160,7 +160,7 @@ func (m *Manifest) deepCopy(v *Version) *Version {
 }
 
 // GetTable returns the SSTable for the given file number, opening it if not cached.
-func (m *Manifest) GetTable(fileNo common.FileNo, level int) (sstable.SSTable, error) {
+func (m *Manifest) GetTable(fileNo common.FileNo, level int) (*sstable.SSTable, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

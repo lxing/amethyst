@@ -3,6 +3,7 @@ package sstable
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"amethyst/internal/common"
 	"amethyst/internal/filter"
 )
+
+var ErrNotFound = errors.New("key not found")
 
 // SSTable File Layout:
 //
@@ -189,8 +192,8 @@ func WriteSSTable(
 	}, nil
 }
 
-// sstableImpl provides random access to entries in an SSTable file.
-type sstableImpl struct {
+// SSTable provides random access to entries in an SSTable file.
+type SSTable struct {
 	file       *os.File
 	path       string // File path (stored for error messages)
 	fileNo     common.FileNo
@@ -199,8 +202,6 @@ type sstableImpl struct {
 	index      *Index
 	blockCache *block_cache.BlockCache
 }
-
-var _ SSTable = (*sstableImpl)(nil)
 
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
 func loadSSTableMetadata(f *os.File) (*Footer, *filter.BloomFilter, *Index, error) {
@@ -265,7 +266,7 @@ func OpenSSTable(
 	path string,
 	fileNo common.FileNo,
 	blockCache *block_cache.BlockCache,
-) (*sstableImpl, error) {
+) (*SSTable, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open %s: %w", path, err)
@@ -277,7 +278,7 @@ func OpenSSTable(
 		return nil, fmt.Errorf("failed to load metadata from %s: %w", path, err)
 	}
 
-	return &sstableImpl{
+	return &SSTable{
 		file:       f,
 		path:       path,
 		fileNo:     fileNo,
@@ -290,7 +291,7 @@ func OpenSSTable(
 
 // Get looks up the entry for the given key.
 // Returns ErrNotFound if the key does not exist.
-func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
+func (s *SSTable) Get(key []byte) (*common.Entry, error) {
 	// Check bloom filter first to skip disk read if key definitely not present
 	if s.filter != nil && !s.filter.MayContain(key) {
 		common.Logf("    not in %d.sst (filter reject)\n", s.fileNo)
@@ -363,18 +364,18 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 	return entry, nil
 }
 
-func (s *sstableImpl) GetIndex() *Index {
+func (s *SSTable) GetIndex() *Index {
 	return s.index
 }
 
 // Len returns the total number of entries in the SSTable.
 // This value is cached in the footer for fast lookup.
-func (s *sstableImpl) Len() int {
+func (s *SSTable) Len() int {
 	return int(s.footer.EntryCount)
 }
 
 // Close releases the underlying file handle.
-func (s *sstableImpl) Close() error {
+func (s *SSTable) Close() error {
 	if s.file == nil {
 		return nil
 	}
@@ -383,7 +384,7 @@ func (s *sstableImpl) Close() error {
 	return err
 }
 
-func (s *sstableImpl) Iterator() common.EntryIterator {
+func (s *SSTable) Iterator() common.EntryIterator {
 	// Open a separate file handle for iteration
 	f, err := os.Open(s.path)
 	if err != nil {
