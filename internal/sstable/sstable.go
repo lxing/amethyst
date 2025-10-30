@@ -317,7 +317,7 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 	}
 
 	// Try to get block from cache
-	var blk block.Block
+	var blk *block.Block
 	blockNo := common.BlockNo(blockIdx)
 
 	if s.blockCache != nil {

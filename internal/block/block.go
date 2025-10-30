@@ -8,6 +8,10 @@ import (
 	"amethyst/internal/common"
 )
 
+// BLOCK_SIZE is the maximum number of entries per data block.
+// The last block in an SSTable may contain fewer entries.
+const BLOCK_SIZE = 64
+
 // Block Layout:
 //
 // A block is the smallest unit of storage in an SSTable, containing
@@ -33,17 +37,15 @@ import (
 //                 ├─────────────────┤
 //                 │  num_entries    │  uint16 - count of entries
 
-// blockImpl stores raw entry bytes and offsets for lazy parsing.
-type blockImpl struct {
+// Block stores raw entry bytes and offsets for lazy parsing.
+type Block struct {
 	data    []byte   // Raw entry data section
 	offsets []uint16 // Byte offset to start of each entry
 }
 
-var _ Block = (*blockImpl)(nil)
-
 // NewBlock parses a raw data block with offset footer.
 // Block format: [entry_data][offset0]...[offsetN][num_entries(u16)]
-func NewBlock(data []byte) (Block, error) {
+func NewBlock(data []byte) (*Block, error) {
 	if len(data) < 2 {
 		return nil, io.ErrUnexpectedEOF
 	}
@@ -67,14 +69,14 @@ func NewBlock(data []byte) (Block, error) {
 	// Data section is everything before offsets
 	dataSection := data[:offsetsStart]
 
-	return &blockImpl{
+	return &Block{
 		data:    dataSection,
 		offsets: offsets,
 	}, nil
 }
 
 // Get performs binary search on offsets with lazy entry parsing.
-func (b *blockImpl) Get(key []byte) (*common.Entry, bool) {
+func (b *Block) Get(key []byte) (*common.Entry, bool) {
 	left, right := 0, len(b.offsets)
 
 	for left < right {
@@ -111,6 +113,6 @@ func (b *blockImpl) Get(key []byte) (*common.Entry, bool) {
 }
 
 // Len returns the number of entries in this block.
-func (b *blockImpl) Len() int {
+func (b *Block) Len() int {
 	return len(b.offsets)
 }
