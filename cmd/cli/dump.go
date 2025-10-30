@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -122,11 +121,6 @@ func dump(parts []string, engine *db.DB) {
 	if parts[1] == "memtable" {
 		dumpMemtable(engine)
 	} else {
-		// Try path as-is first, then try with basePath prepended
-		path := parts[1]
-		if _, err := os.Stat(path); err != nil {
-			path = filepath.Join(engine.Paths().BasePath, parts[1])
-		}
-		dumpFile(path)
+		dumpFile(parts[1])
 	}
 }
