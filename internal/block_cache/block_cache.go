@@ -54,10 +54,10 @@ func (c *BlockCache) Get(fileNo common.FileNo, blockNo common.BlockNo) (*block.B
 		return nil, false
 	}
 
-	// Move to head (mark as recently used) - inline list manipulation
 	// Remove from current position
 	node.prev.next = node.next
 	node.next.prev = node.prev
+
 	// Insert at head
 	node.next = c.head.next
 	node.prev = c.head

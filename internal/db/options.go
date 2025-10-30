@@ -9,6 +9,7 @@ type Options struct {
 	MaxBatchSize           int
 	BatchTimeout           time.Duration
 	BloomFilterFPR         float64
+	BlockCacheSize         int
 }
 
 var DefaultOptions = Options{
@@ -18,6 +19,7 @@ var DefaultOptions = Options{
 	MaxBatchSize:           50,
 	BatchTimeout:           5 * time.Millisecond,
 	BloomFilterFPR:         0.01,
+	BlockCacheSize:         1000,
 }
 
 type Option func(*Options)
@@ -55,5 +57,11 @@ func WithBatchTimeout(d time.Duration) Option {
 func WithBloomFilterFPR(fpr float64) Option {
 	return func(o *Options) {
 		o.BloomFilterFPR = fpr
+	}
+}
+
+func WithBlockCacheSize(size int) Option {
+	return func(o *Options) {
+		o.BlockCacheSize = size
 	}
 }

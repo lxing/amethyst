@@ -63,7 +63,7 @@ func Open(optFns ...Option) (*DB, error) {
 			return nil, fmt.Errorf("failed to read manifest: %w", err)
 		}
 
-		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1)
+		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1, opts.BlockCacheSize)
 		m.LoadVersion(version)
 
 		// Open existing WAL for recovery
@@ -84,7 +84,7 @@ func Open(optFns ...Option) (*DB, error) {
 		common.Logf("recovered from manifest: wal=%d seq=%d\n", version.CurrentWAL, nextSeq)
 	} else {
 		// Fresh DB path: no manifest
-		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1)
+		m = manifest.NewManifest(paths, opts.MaxSSTableLevel+1, opts.BlockCacheSize)
 
 		// Create initial WAL
 		walPath := paths.WALPath(m.Current().NextWALNumber)
