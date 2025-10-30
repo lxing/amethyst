@@ -2,11 +2,13 @@ package sstable
 
 import (
 	"errors"
+	"fmt"
 
 	"amethyst/internal/common"
 )
 
 var ErrNotFound = errors.New("key not found")
+var ErrFilterRejected = fmt.Errorf("key rejected by bloom filter: %w", ErrNotFound)
 
 // SSTable provides read access to a sorted string table file.
 type SSTable interface {
