@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -89,10 +90,10 @@ func findOverlappingL1Files(l1Files []manifest.FileMetadata, l0Files []manifest.
 	// Find min and max keys across all L0 files
 	var minKey, maxKey []byte
 	for _, f := range l0Files {
-		if minKey == nil || bytesCompare(f.SmallestKey, minKey) < 0 {
+		if minKey == nil || bytes.Compare(f.SmallestKey, minKey) < 0 {
 			minKey = f.SmallestKey
 		}
-		if maxKey == nil || bytesCompare(f.LargestKey, maxKey) > 0 {
+		if maxKey == nil || bytes.Compare(f.LargestKey, maxKey) > 0 {
 			maxKey = f.LargestKey
 		}
 	}
@@ -101,7 +102,7 @@ func findOverlappingL1Files(l1Files []manifest.FileMetadata, l0Files []manifest.
 	var overlapping []manifest.FileMetadata
 	for _, f := range l1Files {
 		// File overlaps if: f.SmallestKey <= maxKey AND f.LargestKey >= minKey
-		if bytesCompare(f.SmallestKey, maxKey) <= 0 && bytesCompare(f.LargestKey, minKey) >= 0 {
+		if bytes.Compare(f.SmallestKey, maxKey) <= 0 && bytes.Compare(f.LargestKey, minKey) >= 0 {
 			overlapping = append(overlapping, f)
 		}
 	}
@@ -168,27 +169,4 @@ func fileMetadataToSet(files []manifest.FileMetadata) map[common.FileNo]struct{}
 		set[f.FileNo] = struct{}{}
 	}
 	return set
-}
-
-// bytesCompare compares two byte slices lexicographically.
-func bytesCompare(a, b []byte) int {
-	minLen := len(a)
-	if len(b) < minLen {
-		minLen = len(b)
-	}
-	for i := 0; i < minLen; i++ {
-		if a[i] < b[i] {
-			return -1
-		}
-		if a[i] > b[i] {
-			return 1
-		}
-	}
-	if len(a) < len(b) {
-		return -1
-	}
-	if len(a) > len(b) {
-		return 1
-	}
-	return 0
 }
