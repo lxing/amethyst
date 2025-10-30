@@ -8,6 +8,49 @@ import (
 	"amethyst/internal/common"
 )
 
+// Block Layout:
+//
+// A block is the smallest unit of storage in an SSTable, containing
+// a fixed number of sorted entries with an offset footer for efficient
+// binary search with lazy parsing.
+//
+//  offset 0 ────> ┌─────────────────┐
+//                 │     Entry 0     │  sorted by key
+//  offset X ────> ├─────────────────┤
+//                 │     Entry 1     │
+//  offset Y ────> ├─────────────────┤
+//                 │     Entry 2     │
+//                 ├─────────────────┤
+//                 │       ...       │
+//                 ├─────────────────┤
+//                 │    offset_0     │  uint16 - byte offset to entry 0
+//                 ├─────────────────┤
+//                 │    offset_1     │  uint16
+//                 ├─────────────────┤
+//                 │    offset_2     │  uint16
+//                 ├─────────────────┤
+//                 │       ...       │
+//                 ├─────────────────┤
+//                 │    offset_N     │  uint16
+//                 ├─────────────────┤
+//                 │  num_entries    │  uint16 - count of entries
+//                 └─────────────────┘
+//
+// The offset footer enables O(log n) binary search:
+// 1. Binary search on offsets array
+// 2. Jump to entry at offsets[mid]
+// 3. Read just the key using common.ReadKey()
+// 4. Compare and adjust search bounds
+// 5. On match: parse full entry using common.ReadEntry()
+//
+// Memory layout:
+// - data: contains only the entry data section (offsets excluded)
+// - offsets: parsed from footer, stored as separate array
+//
+// This design enables lazy parsing - only entries accessed during
+// binary search are decoded, significantly reducing memory usage
+// and improving block loading performance.
+
 // blockImpl stores raw entry bytes and offsets for lazy parsing.
 type blockImpl struct {
 	data    []byte   // Raw entry data section
