@@ -111,24 +111,36 @@ func fileCompleter(engine *db.DB, line string) []string {
 	return matches
 }
 
-func inspectFile(path string) {
-	ext := strings.ToLower(filepath.Ext(path))
+func inspectFile(engine *db.DB, relativePath string) {
+	ext := strings.ToLower(filepath.Ext(relativePath))
 
 	switch ext {
 	case ".log":
-		inspectWAL(path)
+		inspectWAL(engine, relativePath)
 	case ".sst":
-		inspectSSTable(path)
+		inspectSSTable(engine, relativePath)
 	default:
 		fmt.Printf("unknown file type: %s (expected .log or .sst)\n", ext)
 	}
 }
 
-func inspectWAL(path string) {
-	fmt.Printf("Inspecting WAL: %s\n", path)
+func inspectWAL(engine *db.DB, relativePath string) {
+	fmt.Printf("Inspecting WAL: %s\n", relativePath)
 	fmt.Println()
 
-	w, err := wal.OpenWAL(path)
+	// Extract file number from path (e.g., "wal/123.log" -> 123)
+	filename := filepath.Base(relativePath)
+	fileNoStr := strings.TrimSuffix(filename, ".log")
+	var fileNo common.FileNo
+	if _, err := fmt.Sscanf(fileNoStr, "%d", &fileNo); err != nil {
+		fmt.Printf("failed to parse file number from %s: %v\n", filename, err)
+		return
+	}
+
+	// Use PathManager to construct full path
+	fullPath := engine.Paths().WALPath(fileNo)
+
+	w, err := wal.OpenWAL(fullPath)
 	if err != nil {
 		fmt.Printf("failed to open WAL: %v\n", err)
 		return
@@ -139,12 +151,24 @@ func inspectWAL(path string) {
 	fmt.Println()
 }
 
-func inspectSSTable(path string) {
-	fmt.Printf("Inspecting SSTable: %s\n", path)
+func inspectSSTable(engine *db.DB, relativePath string) {
+	fmt.Printf("Inspecting SSTable: %s\n", relativePath)
 	fmt.Println()
 
-	// Extract file number from path (e.g., "sstable/0/123.sst" -> 123)
-	filename := filepath.Base(path)
+	// Extract level and file number from path (e.g., "sstable/0/123.sst" -> level=0, fileNo=123)
+	parts := strings.Split(filepath.ToSlash(relativePath), "/")
+	if len(parts) < 3 {
+		fmt.Printf("invalid SSTable path format: %s (expected sstable/<level>/<file>.sst)\n", relativePath)
+		return
+	}
+
+	var level int
+	if _, err := fmt.Sscanf(parts[1], "%d", &level); err != nil {
+		fmt.Printf("failed to parse level from %s: %v\n", parts[1], err)
+		return
+	}
+
+	filename := parts[2]
 	fileNoStr := strings.TrimSuffix(filename, ".sst")
 	var fileNo common.FileNo
 	if _, err := fmt.Sscanf(fileNoStr, "%d", &fileNo); err != nil {
@@ -152,7 +176,10 @@ func inspectSSTable(path string) {
 		return
 	}
 
-	table, err := sstable.OpenSSTable(path, fileNo, nil)
+	// Use PathManager to construct full path
+	fullPath := engine.Paths().SSTablePath(level, fileNo)
+
+	table, err := sstable.OpenSSTable(fullPath, fileNo, nil)
 	if err != nil {
 		fmt.Printf("failed to open SSTable: %v\n", err)
 		return
@@ -323,11 +350,6 @@ func inspect(parts []string, engine *db.DB) {
 	if parts[1] == "memtable" {
 		inspectMemtable(engine)
 	} else {
-		// Try path as-is first, then try with basePath prepended
-		path := parts[1]
-		if _, err := os.Stat(path); err != nil {
-			path = filepath.Join(engine.Paths().BasePath, parts[1])
-		}
-		inspectFile(path)
+		inspectFile(engine, parts[1])
 	}
 }
