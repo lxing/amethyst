@@ -72,7 +72,7 @@ func NewManifest(paths *common.PathManager, numLevels int) *Manifest {
 			Levels: make([][]FileMetadata, numLevels),
 		},
 		tableCache: make(map[common.FileNo]*sstable.SSTable),
-		blockCache: block_cache.NewBlockCache(),
+		blockCache: block_cache.NewBlockCache(1000),
 		paths:      paths,
 	}
 }
