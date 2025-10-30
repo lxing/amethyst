@@ -236,12 +236,7 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 			}
 
 			entry, err := table.Get(key)
-			if err == sstable.ErrFilterRejected {
-				common.Logf("    not in L%d/%d.sst (filter reject)\n", level, fm.FileNo)
-				continue
-			}
 			if err == sstable.ErrNotFound {
-				common.Logf("    not in L%d/%d.sst\n", level, fm.FileNo)
 				continue
 			}
 			if err != nil {

@@ -293,7 +293,8 @@ func OpenSSTable(
 func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 	// Check bloom filter first to skip disk read if key definitely not present
 	if s.filter != nil && !s.filter.MayContain(key) {
-		return nil, ErrFilterRejected
+		common.Logf("    not in %d.sst (filter reject)\n", s.fileNo)
+		return nil, ErrNotFound
 	}
 
 	// Find which block might contain this key
