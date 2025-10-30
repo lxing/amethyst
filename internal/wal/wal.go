@@ -9,33 +9,31 @@ import (
 	"amethyst/internal/common"
 )
 
-// walImpl appends entries to a single file on disk.
-type walImpl struct {
+// WAL appends entries to a single file on disk.
+type WAL struct {
 	file *os.File
 }
 
-var _ WAL = (*walImpl)(nil)
-
 // OpenWAL opens an existing WAL file for appending (used during recovery).
-func OpenWAL(path string) (*walImpl, error) {
+func OpenWAL(path string) (*WAL, error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open %s: %w", path, err)
 	}
-	return &walImpl{file: f}, nil
+	return &WAL{file: f}, nil
 }
 
 // CreateWAL creates a new WAL file, truncating if it exists (used during rotation).
-func CreateWAL(path string) (*walImpl, error) {
+func CreateWAL(path string) (*WAL, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s: %w", path, err)
 	}
-	return &walImpl{file: f}, nil
+	return &WAL{file: f}, nil
 }
 
 // Close releases the underlying file handle.
-func (l *walImpl) Close() error {
+func (l *WAL) Close() error {
 	if l.file == nil {
 		return nil
 	}
@@ -45,7 +43,7 @@ func (l *walImpl) Close() error {
 }
 
 // WriteEntry persists the provided batch. Entries are written sequentially.
-func (l *walImpl) WriteEntry(batch []*common.Entry) error {
+func (l *WAL) WriteEntry(batch []*common.Entry) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -64,7 +62,7 @@ func (l *walImpl) WriteEntry(batch []*common.Entry) error {
 
 // Iterator returns a streaming iterator over all log entries.
 // The iterator will automatically close the underlying file when exhausted.
-func (l *walImpl) Iterator() (common.EntryIterator, error) {
+func (l *WAL) Iterator() (common.EntryIterator, error) {
 	f, err := os.Open(l.file.Name())
 	if err != nil {
 		return nil, err
@@ -78,7 +76,7 @@ func (l *walImpl) Iterator() (common.EntryIterator, error) {
 
 // Len returns the number of entries in this WAL by iterating through the file.
 // This is O(n) and should be called sparingly (e.g., for debugging/inspection).
-func (l *walImpl) Len() int {
+func (l *WAL) Len() int {
 	iter, err := l.Iterator()
 	if err != nil {
 		return 0

@@ -21,7 +21,7 @@ type DB struct {
 	mu        sync.RWMutex
 	nextSeq   uint32
 	memtable  memtable.Memtable
-	wal       wal.WAL
+	wal       *wal.WAL
 	manifest  *manifest.Manifest
 	Opts      Options
 	paths     *common.PathManager
@@ -49,7 +49,7 @@ func Open(optFns ...Option) (*DB, error) {
 
 	// Try to load existing manifest
 	var m *manifest.Manifest
-	var log wal.WAL
+	var log *wal.WAL
 	var mt memtable.Memtable
 	var nextSeq uint32
 
@@ -122,7 +122,7 @@ func Open(optFns ...Option) (*DB, error) {
 
 // replayWAL replays all entries from the WAL into the memtable.
 // Returns the highest sequence number seen.
-func replayWAL(w wal.WAL, mt memtable.Memtable) (uint32, error) {
+func replayWAL(w *wal.WAL, mt memtable.Memtable) (uint32, error) {
 	iter, err := w.Iterator()
 	if err != nil {
 		return 0, err
@@ -345,7 +345,7 @@ func (d *DB) Memtable() memtable.Memtable {
 	return d.memtable
 }
 
-func (d *DB) WAL() wal.WAL {
+func (d *DB) WAL() *wal.WAL {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.wal
