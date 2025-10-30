@@ -59,14 +59,9 @@ func (b *blockImpl) Get(key []byte) (*common.Entry, bool) {
 		offset := b.offsets[mid]
 		reader := bytes.NewReader(b.data[offset:])
 
-		// Read just the key length and key for comparison
-		keyLen, err := common.ReadUint16(reader)
+		// Read just the key for comparison
+		entryKey, err := common.ReadKey(reader)
 		if err != nil {
-			return nil, false
-		}
-
-		entryKey := make([]byte, keyLen)
-		if _, err := io.ReadFull(reader, entryKey); err != nil {
 			return nil, false
 		}
 

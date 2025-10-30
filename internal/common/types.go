@@ -107,6 +107,24 @@ func WriteEntry(w io.Writer, e *Entry) (int, error) {
 	return total, nil
 }
 
+// ReadKey reads just the key from an entry.
+// Useful for binary search where we only need to compare keys.
+func ReadKey(r io.Reader) ([]byte, error) {
+	// Read key_len (u16)
+	keyLen, err := ReadUint16(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read key bytes
+	key, err := ReadBytes(r, uint64(keyLen))
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}
+
 // ReadEntry reads a single entry from the reader.
 // Returns (nil, nil) when stream is exhausted (clean EOF).
 // Returns (nil, ErrIncompleteEntry) for incomplete entries (malformed data).
