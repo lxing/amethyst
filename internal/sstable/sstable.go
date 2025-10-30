@@ -44,7 +44,7 @@ type WriteResult struct {
 // entries: iterator providing sorted entries to write
 // sizeHint: expected number of entries (for bloom filter sizing)
 // fpr: bloom filter false positive rate (e.g., 0.01 for 1%)
-// Returns metadata about the written SSTable.
+// Returns metadata about the written SSTable to load into manifest.
 func WriteSSTable(
 	w io.Writer,
 	entries common.EntryIterator,
@@ -354,7 +354,6 @@ func (s *sstableImpl) Close() error {
 	return err
 }
 
-// Iterator returns an iterator that sequentially scans all entries in the SSTable.
 func (s *sstableImpl) Iterator() common.EntryIterator {
 	// Open a separate file handle for iteration
 	f, err := os.Open(s.path)
@@ -369,7 +368,6 @@ func (s *sstableImpl) Iterator() common.EntryIterator {
 	}
 }
 
-// sstableIterator provides sequential access to all entries in an SSTable.
 type sstableIterator struct {
 	file   *os.File
 	reader *bufio.Reader
@@ -378,7 +376,6 @@ type sstableIterator struct {
 
 var _ common.EntryIterator = (*sstableIterator)(nil)
 
-// Next returns the next entry in the SSTable.
 func (it *sstableIterator) Next() (*common.Entry, error) {
 	// Check for initialization error
 	if it.err != nil {
@@ -406,7 +403,6 @@ func (it *sstableIterator) Next() (*common.Entry, error) {
 	return entry, nil
 }
 
-// Close releases the underlying file handle.
 func (it *sstableIterator) Close() error {
 	if it.file == nil {
 		return nil

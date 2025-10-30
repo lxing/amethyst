@@ -40,17 +40,17 @@ type EntryIterator interface {
 // Entry Layout:
 //
 // ┌──────────────────┐
-// │    entryType     │  uint8 - 0=Put, 1=Delete
-// ├──────────────────┤
-// │       seq        │  uint32
-// ├──────────────────┤
-// │      keyLen      │  uint32 - len(key)
-// ├──────────────────┤
-// │     valueLen     │  uint32 - len(value), 0 for tombstones
+// │      keyLen      │  uint16 - len(key)
 // ├──────────────────┤
 // │       key        │  []byte
 // ├──────────────────┤
+// │     valueLen     │  uint16 - len(value), 0 for tombstones
+// ├──────────────────┤
 // │      value       │  []byte
+// ├──────────────────┤
+// │       seq        │  uint32
+// ├──────────────────┤
+// │    entryType     │  uint8 - 0=Put, 1=Delete
 // └──────────────────┘
 
 // WriteEntry writes an entry to the given writer.
@@ -58,30 +58,14 @@ type EntryIterator interface {
 func WriteEntry(w io.Writer, e *Entry) (int, error) {
 	total := 0
 
-	n, err := WriteUint8(w, uint8(e.Type))
+	// Write key_len (u16)
+	n, err := WriteUint16(w, uint16(len(e.Key)))
 	total += n
 	if err != nil {
 		return total, err
 	}
 
-	n, err = WriteUint32(w, e.Seq)
-	total += n
-	if err != nil {
-		return total, err
-	}
-
-	n, err = WriteUint32(w, uint32(len(e.Key)))
-	total += n
-	if err != nil {
-		return total, err
-	}
-
-	n, err = WriteUint32(w, uint32(len(e.Value)))
-	total += n
-	if err != nil {
-		return total, err
-	}
-
+	// Write key bytes
 	if len(e.Key) > 0 {
 		n, err = WriteBytes(w, e.Key)
 		total += n
@@ -90,12 +74,34 @@ func WriteEntry(w io.Writer, e *Entry) (int, error) {
 		}
 	}
 
+	// Write value_len (u16)
+	n, err = WriteUint16(w, uint16(len(e.Value)))
+	total += n
+	if err != nil {
+		return total, err
+	}
+
+	// Write value bytes
 	if len(e.Value) > 0 {
 		n, err = WriteBytes(w, e.Value)
 		total += n
 		if err != nil {
 			return total, err
 		}
+	}
+
+	// Write seq (u32)
+	n, err = WriteUint32(w, e.Seq)
+	total += n
+	if err != nil {
+		return total, err
+	}
+
+	// Write type (u8)
+	n, err = WriteUint8(w, uint8(e.Type))
+	total += n
+	if err != nil {
+		return total, err
 	}
 
 	return total, nil
@@ -105,45 +111,51 @@ func WriteEntry(w io.Writer, e *Entry) (int, error) {
 // Returns (nil, nil) when stream is exhausted (clean EOF).
 // Returns (nil, ErrIncompleteEntry) for incomplete entries (malformed data).
 func ReadEntry(r io.ByteReader) (*Entry, error) {
-	firstByte, err := r.ReadByte()
+	reader := r.(io.Reader)
+
+	// Read key_len (u16)
+	keyLen, err := ReadUint16(reader)
 	if err != nil {
 		if err == io.EOF {
 			return nil, nil
 		}
-		return nil, err
+		return nil, ErrIncompleteEntry
 	}
 
-	reader := r.(io.Reader)
+	// Read key bytes
+	key, err := ReadBytes(reader, uint64(keyLen))
+	if err != nil {
+		return nil, ErrIncompleteEntry
+	}
 
+	// Read value_len (u16)
+	valueLen, err := ReadUint16(reader)
+	if err != nil {
+		return nil, ErrIncompleteEntry
+	}
+
+	// Read value bytes
+	value, err := ReadBytes(reader, uint64(valueLen))
+	if err != nil {
+		return nil, ErrIncompleteEntry
+	}
+
+	// Read seq (u32)
 	seq, err := ReadUint32(reader)
 	if err != nil {
 		return nil, ErrIncompleteEntry
 	}
 
-	keyLen, err := ReadUint32(reader)
+	// Read type (u8)
+	entryType, err := ReadUint8(reader)
 	if err != nil {
 		return nil, ErrIncompleteEntry
 	}
 
-	valueLen, err := ReadUint32(reader)
-	if err != nil {
-		return nil, ErrIncompleteEntry
-	}
-
-	entry := &Entry{
-		Type: EntryType(firstByte),
-		Seq:  seq,
-	}
-
-	entry.Key, err = ReadBytes(reader, uint64(keyLen))
-	if err != nil {
-		return nil, ErrIncompleteEntry
-	}
-
-	entry.Value, err = ReadBytes(reader, uint64(valueLen))
-	if err != nil {
-		return nil, ErrIncompleteEntry
-	}
-
-	return entry, nil
+	return &Entry{
+		Type:  EntryType(entryType),
+		Seq:   seq,
+		Key:   key,
+		Value: value,
+	}, nil
 }

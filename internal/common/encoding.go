@@ -21,12 +21,30 @@ func ReadUint8(r io.Reader) (uint8, error) {
 	return buf[0], nil
 }
 
+// WriteUint16 writes a 16-bit unsigned integer in little-endian format.
+// Returns the number of bytes written (always 2) and any error encountered.
+func WriteUint16(w io.Writer, v uint16) (int, error) {
+	var buf [2]byte
+	binary.LittleEndian.PutUint16(buf[:], v)
+	return w.Write(buf[:])
+}
+
 // WriteUint32 writes a 32-bit unsigned integer in little-endian format.
 // Returns the number of bytes written (always 4) and any error encountered.
 func WriteUint32(w io.Writer, v uint32) (int, error) {
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], v)
 	return w.Write(buf[:])
+}
+
+// ReadUint16 reads a 16-bit unsigned integer in little-endian format.
+// Returns the integer value and any error encountered.
+func ReadUint16(r io.Reader) (uint16, error) {
+	var buf [2]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint16(buf[:]), nil
 }
 
 // ReadUint32 reads a 32-bit unsigned integer in little-endian format.
