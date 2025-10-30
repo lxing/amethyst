@@ -12,7 +12,7 @@ import (
 // bloomFilter implements a space-efficient probabilistic data structure
 // for set membership testing with no false negatives.
 type bloomFilter struct {
-	bitmap bitmap.Bitmap
+	bitmap *bitmap.Bitmap
 	k      uint32 // number of hash functions
 	m      uint32 // number of bits in bitmap
 }

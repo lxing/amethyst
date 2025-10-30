@@ -22,7 +22,7 @@ func TestNewBitmap(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		b := NewBitmap(tt.numBits).(*bitmapImpl)
+		b := NewBitmap(tt.numBits)
 		require.Equal(t, tt.expectedSize, uint32(len(b.data)), "NewBitmap(%d) data size", tt.numBits)
 		require.Equal(t, tt.numBits, b.numBits, "NewBitmap(%d) numBits", tt.numBits)
 
