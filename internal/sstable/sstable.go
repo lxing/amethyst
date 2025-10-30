@@ -40,8 +40,17 @@ type WriteResult struct {
 }
 
 // WriteSSTable writes a complete SSTable from a stream of sorted entries.
+// w: writer to write SSTable data to
+// entries: iterator providing sorted entries to write
+// sizeHint: expected number of entries (for bloom filter sizing)
+// fpr: bloom filter false positive rate (e.g., 0.01 for 1%)
 // Returns metadata about the written SSTable.
-func WriteSSTable(w io.Writer, entries common.EntryIterator, sizeHint uint32, fpr float64) (*WriteResult, error) {
+func WriteSSTable(
+	w io.Writer,
+	entries common.EntryIterator,
+	sizeHint uint32,
+	fpr float64,
+) (*WriteResult, error) {
 	var offset uint32
 	var indexEntries []IndexEntry
 	var blockEntryCount int
@@ -65,12 +74,9 @@ func WriteSSTable(w io.Writer, entries common.EntryIterator, sizeHint uint32, fp
 			break // End of stream
 		}
 
-		// Track smallest key (first entry)
 		if totalEntryCount == 0 {
 			smallestKey = bytes.Clone(entry.Key)
 		}
-
-		// Track largest key reference (clone after loop)
 		largestKeyRef = entry.Key
 
 		// Add to bloom filter
@@ -193,7 +199,7 @@ func loadSSTableMetadata(f *os.File) (*Footer, filter.Filter, *Index, error) {
 
 	// Read filter block
 	filterSize := int64(footer.IndexOffset) - int64(footer.FilterOffset)
-	var bloomFilter filter.Filter = nil
+	var bloomFilter filter.Filter
 	if filterSize > 0 {
 		filterData := make([]byte, filterSize)
 		if _, err := f.ReadAt(filterData, int64(footer.FilterOffset)); err != nil {
