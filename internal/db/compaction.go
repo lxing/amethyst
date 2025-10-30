@@ -11,6 +11,20 @@ import (
 	"amethyst/internal/sstable"
 )
 
+// compactionManager handles compaction operations for the database.
+// TODO: Add background worker goroutine for automatic compaction
+// TODO: Add stopChan and triggerChan for coordination
+type compactionManager struct {
+	db *DB
+}
+
+// newCompactionManager creates a new compaction manager for the given DB.
+func newCompactionManager(db *DB) *compactionManager {
+	return &compactionManager{
+		db: db,
+	}
+}
+
 // CompactL0 merges all L0 files with overlapping L1 files into new L1 files.
 // This is a manual trigger - automatic background compaction will be added later.
 //
@@ -19,7 +33,11 @@ import (
 // TODO: Background worker for automatic compaction
 // TODO: Metrics and monitoring
 func (d *DB) CompactL0() error {
-	m := d.Manifest()
+	return d.compactionMgr.compactL0()
+}
+
+func (cm *compactionManager) compactL0() error {
+	m := cm.db.Manifest()
 	v := m.Current()
 
 	// 1. Get all L0 files
@@ -35,11 +53,11 @@ func (d *DB) CompactL0() error {
 	common.Logf("compaction: found %d overlapping L1 files\n", len(l1Files))
 
 	// 3. Open iterators for all files to be merged
-	iters, err := openIterators(m, l0Files, 0)
+	iters, err := cm.openIterators(l0Files, 0)
 	if err != nil {
 		return fmt.Errorf("failed to open L0 iterators: %w", err)
 	}
-	l1Iters, err := openIterators(m, l1Files, 1)
+	l1Iters, err := cm.openIterators(l1Files, 1)
 	if err != nil {
 		return fmt.Errorf("failed to open L1 iterators: %w", err)
 	}
@@ -50,7 +68,7 @@ func (d *DB) CompactL0() error {
 	mergeIter := merge_iterator.NewMergeIterator(iters)
 
 	// 5. Write new L1 files
-	newL1Files, err := d.writeCompactedFiles(mergeIter, 1)
+	newL1Files, err := cm.writeCompactedFiles(mergeIter, 1)
 	if err != nil {
 		// TODO: Better error handling - currently orphans files
 		return fmt.Errorf("failed to write compacted files: %w", err)
@@ -111,7 +129,8 @@ func findOverlappingL1Files(l1Files []manifest.FileMetadata, l0Files []manifest.
 }
 
 // openIterators opens SSTable iterators for the given files.
-func openIterators(m *manifest.Manifest, files []manifest.FileMetadata, level int) ([]common.EntryIterator, error) {
+func (cm *compactionManager) openIterators(files []manifest.FileMetadata, level int) ([]common.EntryIterator, error) {
+	m := cm.db.Manifest()
 	iters := make([]common.EntryIterator, 0, len(files))
 	for _, f := range files {
 		table, err := m.GetTable(f.FileNo, level)
@@ -130,13 +149,13 @@ func openIterators(m *manifest.Manifest, files []manifest.FileMetadata, level in
 // TODO: Proper file size target (separate config option)
 // TODO: Tombstone dropping (safe to drop if no older versions exist)
 // TODO: Entry deduplication (keep newest by sequence number)
-func (d *DB) writeCompactedFiles(iter common.EntryIterator, level int) ([]manifest.FileMetadata, error) {
+func (cm *compactionManager) writeCompactedFiles(iter common.EntryIterator, level int) ([]manifest.FileMetadata, error) {
 	// TODO: MergeIterator is stubbed, so this won't produce any output yet
 	// For now, just write everything to a single SSTable file
 
-	v := d.Manifest().Current()
+	v := cm.db.Manifest().Current()
 	fileNo := v.NextSSTableNumber
-	path := d.paths.SSTablePath(level, fileNo)
+	path := cm.db.paths.SSTablePath(level, fileNo)
 
 	f, err := os.Create(path)
 	if err != nil {
@@ -146,7 +165,7 @@ func (d *DB) writeCompactedFiles(iter common.EntryIterator, level int) ([]manife
 
 	// Write SSTable using existing WriteSSTable function
 	// Use MemtableFlushThreshold as size hint for now
-	result, err := sstable.WriteSSTable(f, iter, uint32(d.Opts.MemtableFlushThreshold), d.Opts.BloomFilterFPR)
+	result, err := sstable.WriteSSTable(f, iter, uint32(cm.db.Opts.MemtableFlushThreshold), cm.db.Opts.BloomFilterFPR)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write SSTable: %w", err)
 	}

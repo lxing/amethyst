@@ -27,9 +27,10 @@ type DB struct {
 	wal      atomic.Pointer[*wal.WAL]
 	manifest atomic.Pointer[*manifest.Manifest]
 
-	Opts      Options
-	paths     *common.PathManager
-	writeChan chan *writeRequest
+	Opts           Options
+	paths          *common.PathManager
+	writeChan      chan *writeRequest
+	compactionMgr  *compactionManager
 }
 
 func Open(optFns ...Option) (*DB, error) {
@@ -120,6 +121,7 @@ func Open(optFns ...Option) (*DB, error) {
 	db.memtable.Store(&mt)
 	db.wal.Store(&log)
 	db.manifest.Store(&m)
+	db.compactionMgr = newCompactionManager(db)
 
 	// Start background group commit loop
 	go db.groupCommitLoop()
