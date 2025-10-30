@@ -197,7 +197,7 @@ type sstableImpl struct {
 	footer     *Footer
 	filter     *filter.BloomFilter
 	index      *Index
-	blockCache block_cache.BlockCache
+	blockCache *block_cache.BlockCache
 }
 
 var _ SSTable = (*sstableImpl)(nil)
@@ -264,7 +264,7 @@ func loadSSTableMetadata(f *os.File) (*Footer, *filter.BloomFilter, *Index, erro
 func OpenSSTable(
 	path string,
 	fileNo common.FileNo,
-	blockCache block_cache.BlockCache,
+	blockCache *block_cache.BlockCache,
 ) (*sstableImpl, error) {
 	f, err := os.Open(path)
 	if err != nil {

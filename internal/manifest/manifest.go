@@ -59,7 +59,7 @@ type Manifest struct {
 	tableCache map[common.FileNo]sstable.SSTable
 
 	// Block cache: shared across all SSTables
-	blockCache block_cache.BlockCache
+	blockCache *block_cache.BlockCache
 
 	// Path manager for all database files
 	paths *common.PathManager
