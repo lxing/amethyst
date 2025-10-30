@@ -1,8 +1,8 @@
 package sstable
 
 import (
-	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -53,10 +53,7 @@ func WriteSSTable(
 ) (*WriteResult, error) {
 	var offset uint32
 	var indexEntries []IndexEntry
-	var blockEntryCount int
 	var totalEntryCount uint32
-	var blockStartOffset uint32
-	var firstBlockKey []byte
 	var smallestKey []byte
 	var largestKeyRef []byte
 
@@ -64,7 +61,12 @@ func WriteSSTable(
 	k, m := filter.OptimalBloomFilterParams(sizeHint, fpr)
 	bloomFilter := filter.NewBloomFilter(k, m)
 
-	// Stream data blocks
+	// Block building state
+	var blockOffsets []uint16
+	var firstBlockKey []byte
+	var blockStartOffset uint32
+
+	// Stream entries and build blocks
 	for {
 		entry, err := entries.Next()
 		if err != nil {
@@ -82,41 +84,76 @@ func WriteSSTable(
 		// Add to bloom filter
 		bloomFilter.Add(entry.Key)
 
-		// Start new block: record offset and first key
-		if blockEntryCount == 0 {
-			blockStartOffset = offset
-			firstBlockKey = make([]byte, len(entry.Key))
-			copy(firstBlockKey, entry.Key)
+		// Flush block when full (before starting new one)
+		if len(blockOffsets) >= block.BLOCK_SIZE {
+			// Write offset footer for completed block
+			for _, off := range blockOffsets {
+				n, err := common.WriteUint16(w, off)
+				if err != nil {
+					return nil, err
+				}
+				offset += uint32(n)
+			}
+
+			// Write num_entries
+			n, err := common.WriteUint16(w, uint16(len(blockOffsets)))
+			if err != nil {
+				return nil, err
+			}
+			offset += uint32(n)
+
+			// Add index entry
+			indexEntries = append(indexEntries, IndexEntry{
+				BlockOffset: blockStartOffset,
+				Key:         firstBlockKey,
+			})
+
+			// Reset for next block
+			blockOffsets = nil
+			firstBlockKey = nil
 		}
 
-		// Write entry to output
+		// Start new block if needed
+		if len(blockOffsets) == 0 {
+			blockStartOffset = offset
+			firstBlockKey = bytes.Clone(entry.Key)
+		}
+
+		// Record offset relative to block start
+		blockOffsets = append(blockOffsets, uint16(offset-blockStartOffset))
+
+		// Write entry directly to output
 		n, err := common.WriteEntry(w, entry)
 		if err != nil {
 			return nil, err
 		}
 		offset += uint32(n)
-		blockEntryCount++
 		totalEntryCount++
-
-		// Create index entry when block is full
-		if blockEntryCount >= block.BLOCK_SIZE {
-			indexEntry := IndexEntry{
-				BlockOffset: blockStartOffset,
-				Key:         firstBlockKey,
-			}
-			indexEntries = append(indexEntries, indexEntry)
-			blockEntryCount = 0
-			firstBlockKey = nil
-		}
 	}
 
-	// Handle last partial block
-	if blockEntryCount > 0 {
-		indexEntry := IndexEntry{
+	// Flush last partial block if any
+	if len(blockOffsets) > 0 {
+		// Write offset footer
+		for _, off := range blockOffsets {
+			n, err := common.WriteUint16(w, off)
+			if err != nil {
+				return nil, err
+			}
+			offset += uint32(n)
+		}
+
+		// Write num_entries
+		n, err := common.WriteUint16(w, uint16(len(blockOffsets)))
+		if err != nil {
+			return nil, err
+		}
+		offset += uint32(n)
+
+		// Add index entry
+		indexEntries = append(indexEntries, IndexEntry{
 			BlockOffset: blockStartOffset,
 			Key:         firstBlockKey,
-		}
-		indexEntries = append(indexEntries, indexEntry)
+		})
 	}
 
 	// Clone largest key now that iteration is complete
@@ -333,7 +370,6 @@ func (s *sstableImpl) Get(key []byte) (*common.Entry, error) {
 	return entry, nil
 }
 
-// GetIndex returns the index entries (first key of each block).
 func (s *sstableImpl) GetIndex() *Index {
 	return s.index
 }
@@ -363,15 +399,25 @@ func (s *sstableImpl) Iterator() common.EntryIterator {
 	}
 
 	return &sstableIterator{
-		file:   f,
-		reader: bufio.NewReader(io.LimitReader(f, int64(s.footer.FilterOffset))),
+		file:         f,
+		index:        s.index,
+		filterOffset: s.footer.FilterOffset,
+		blockIdx:     0,
+		entryIdx:     0,
 	}
 }
 
 type sstableIterator struct {
-	file   *os.File
-	reader *bufio.Reader
-	err    error // Initialization error
+	file         *os.File
+	index        *Index
+	filterOffset uint32
+
+	blockIdx  int      // Current block index
+	blockData []byte   // Current block's entry data section
+	offsets   []uint16 // Current block's offsets
+	entryIdx  int      // Position within current block
+
+	err error // Initialization or loading error
 }
 
 var _ common.EntryIterator = (*sstableIterator)(nil)
@@ -386,21 +432,91 @@ func (it *sstableIterator) Next() (*common.Entry, error) {
 		return nil, nil // Already closed
 	}
 
-	// Read next entry sequentially
-	entry, err := common.ReadEntry(it.reader)
+	// Load first block if needed
+	if it.blockData == nil {
+		if err := it.loadNextBlock(); err != nil {
+			if err == io.EOF {
+				it.Close()
+				return nil, nil
+			}
+			it.Close()
+			return nil, err
+		}
+	}
+
+	// If current block exhausted, load next block
+	if it.entryIdx >= len(it.offsets) {
+		if err := it.loadNextBlock(); err != nil {
+			if err == io.EOF {
+				it.Close()
+				return nil, nil
+			}
+			it.Close()
+			return nil, err
+		}
+	}
+
+	// Parse entry at current position
+	offset := it.offsets[it.entryIdx]
+	reader := bytes.NewReader(it.blockData[offset:])
+	entry, err := common.ReadEntry(reader)
 	if err != nil {
-		// EOF or read error
 		it.Close()
 		return nil, err
 	}
 
-	if entry == nil {
-		// End of entries
-		it.Close()
-		return nil, nil
+	it.entryIdx++
+	return entry, nil
+}
+
+func (it *sstableIterator) loadNextBlock() error {
+	if it.blockIdx >= len(it.index.Entries) {
+		return io.EOF // Done
 	}
 
-	return entry, nil
+	// Calculate block boundaries
+	blockStart := it.index.Entries[it.blockIdx].BlockOffset
+	var blockEnd uint32
+	if it.blockIdx+1 < len(it.index.Entries) {
+		blockEnd = it.index.Entries[it.blockIdx+1].BlockOffset
+	} else {
+		blockEnd = it.filterOffset
+	}
+
+	blockSize := blockEnd - blockStart
+	blockBytes := make([]byte, blockSize)
+
+	// Read full block
+	_, err := it.file.ReadAt(blockBytes, int64(blockStart))
+	if err != nil {
+		return err
+	}
+
+	// Parse block: extract data section and offsets
+	if len(blockBytes) < 2 {
+		return io.ErrUnexpectedEOF
+	}
+
+	numEntries := binary.LittleEndian.Uint16(blockBytes[len(blockBytes)-2:])
+	offsetsStart := len(blockBytes) - 2 - int(numEntries)*2
+
+	if offsetsStart < 0 {
+		return io.ErrUnexpectedEOF
+	}
+
+	// Extract offsets
+	it.offsets = make([]uint16, numEntries)
+	for i := 0; i < int(numEntries); i++ {
+		pos := offsetsStart + i*2
+		it.offsets[i] = binary.LittleEndian.Uint16(blockBytes[pos : pos+2])
+	}
+
+	// Extract entry data
+	it.blockData = blockBytes[:offsetsStart]
+	it.entryIdx = 0
+	it.blockIdx++
+
+	return nil
 }
 
 func (it *sstableIterator) Close() error {
@@ -409,6 +525,7 @@ func (it *sstableIterator) Close() error {
 	}
 	err := it.file.Close()
 	it.file = nil
-	it.reader = nil
+	it.blockData = nil
+	it.offsets = nil
 	return err
 }

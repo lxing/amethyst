@@ -2,6 +2,7 @@ package block
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"testing"
 
@@ -9,6 +10,36 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+// buildBlock encodes entries with offset footer for testing.
+func buildBlock(t *testing.T, entries []*common.Entry) []byte {
+	var dataBuf bytes.Buffer
+	var offsets []uint16
+
+	for _, e := range entries {
+		offsets = append(offsets, uint16(dataBuf.Len()))
+		_, err := common.WriteEntry(&dataBuf, e)
+		require.NoError(t, err)
+	}
+
+	// Build complete block with footer
+	var blockBuf bytes.Buffer
+	blockBuf.Write(dataBuf.Bytes())
+
+	// Write offsets
+	for _, off := range offsets {
+		offsetBytes := make([]byte, 2)
+		binary.LittleEndian.PutUint16(offsetBytes, off)
+		blockBuf.Write(offsetBytes)
+	}
+
+	// Write num_entries
+	numEntries := make([]byte, 2)
+	binary.LittleEndian.PutUint16(numEntries, uint16(len(offsets)))
+	blockBuf.Write(numEntries)
+
+	return blockBuf.Bytes()
+}
 
 // testBlockWithEntries creates a block with n entries and verifies lookups.
 func testBlockWithEntries(t *testing.T, n int) {
@@ -26,15 +57,11 @@ func testBlockWithEntries(t *testing.T, n int) {
 		}
 	}
 
-	// Encode all entries into a block
-	var buf bytes.Buffer
-	for _, e := range entries {
-		_, err := common.WriteEntry(&buf, e)
-		require.NoError(t, err)
-	}
+	// Encode block with offset footer
+	blockData := buildBlock(t, entries)
 
 	// Parse the block
-	block, err := NewBlock(buf.Bytes())
+	block, err := NewBlock(blockData)
 	require.NoError(t, err)
 
 	// Verify all entries can be found
@@ -76,7 +103,10 @@ func TestBlockPartialSize(t *testing.T) {
 }
 
 func TestBlockEmpty(t *testing.T) {
-	block, err := NewBlock([]byte{})
+	// Empty block: just num_entries=0
+	blockData := buildBlock(t, []*common.Entry{})
+
+	block, err := NewBlock(blockData)
 	require.NoError(t, err)
 
 	found, ok := block.Get([]byte("any"))
@@ -91,13 +121,8 @@ func TestBlockWithTombstone(t *testing.T) {
 		{Type: common.EntryTypeDelete, Seq: 2, Key: []byte("deleted"), Value: nil},
 	}
 
-	var buf bytes.Buffer
-	for _, e := range entries {
-		_, err := common.WriteEntry(&buf, e)
-		require.NoError(t, err)
-	}
-
-	block, err := NewBlock(buf.Bytes())
+	blockData := buildBlock(t, entries)
+	block, err := NewBlock(blockData)
 	require.NoError(t, err)
 
 	// Verify tombstone is found
