@@ -39,5 +39,5 @@ func LogDuration(start time.Time, format string, args ...interface{}) {
 	elapsed := time.Since(start)
 	msg := fmt.Sprintf(format, args...)
 	durStr := fmt.Sprintf("(%s)", formatDuration(elapsed))
-	Logf("%-10s%s\n", durStr, msg)
+	Logf("%-12s%s\n", durStr, msg)
 }
