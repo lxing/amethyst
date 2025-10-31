@@ -13,7 +13,6 @@ type blockKey struct {
 	blockNo common.BlockNo
 }
 
-// lruNode is a doubly-linked list node holding a cached block.
 type lruNode struct {
 	key   blockKey
 	block *block.Block
@@ -21,7 +20,6 @@ type lruNode struct {
 	next  *lruNode
 }
 
-// BlockCache is an LRU cache for SSTable blocks.
 type BlockCache struct {
 	mu       sync.Mutex
 	capacity int
@@ -30,7 +28,6 @@ type BlockCache struct {
 	tail     *lruNode // Least recently used (sentinel)
 }
 
-// NewBlockCache creates a new LRU block cache with the given capacity.
 func NewBlockCache(capacity int) *BlockCache {
 	c := &BlockCache{
 		capacity: capacity,
@@ -38,12 +35,12 @@ func NewBlockCache(capacity int) *BlockCache {
 		head:     &lruNode{},
 		tail:     &lruNode{},
 	}
-	// Link sentinels
 	c.head.next = c.tail
 	c.tail.prev = c.head
 	return c
 }
 
+// TODO: generics
 func (c *BlockCache) Get(fileNo common.FileNo, blockNo common.BlockNo) (*block.Block, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
