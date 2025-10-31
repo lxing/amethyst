@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"errors"
 	"io"
 )
@@ -29,6 +30,36 @@ type Entry struct {
 	Seq   uint32
 	Key   []byte
 	Value []byte
+}
+
+// CompareEntries compares two entries for ordering in merge operations.
+// Returns:
+//   - negative if e1 < e2
+//   - zero if e1 == e2
+//   - positive if e1 > e2
+//
+// Comparison order:
+//  1. By key (ascending, lexicographic)
+//  2. By sequence number (descending - higher seq wins for same key)
+//
+// This ensures that during compaction, entries are sorted by key,
+// and for duplicate keys, the newest version (highest seq) is selected.
+func CompareEntries(e1, e2 *Entry) int {
+	// Compare keys first
+	if cmp := bytes.Compare(e1.Key, e2.Key); cmp != 0 {
+		return cmp
+	}
+
+	// Same key - compare sequence numbers in descending order
+	// Higher sequence number should be "less" so it's selected first
+	if e1.Seq > e2.Seq {
+		return -1
+	}
+	if e1.Seq < e2.Seq {
+		return 1
+	}
+
+	return 0
 }
 
 // EntryIterator produces a stream of entries. Next returns nil when the stream

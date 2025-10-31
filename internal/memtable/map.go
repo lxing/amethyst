@@ -12,7 +12,6 @@ import (
 type mapMemtableImpl struct {
 	mu    sync.RWMutex
 	items map[string]*common.Entry
-	next  uint32
 }
 
 var _ Memtable = (*mapMemtableImpl)(nil)
@@ -24,26 +23,26 @@ func NewMapMemtable() Memtable {
 	}
 }
 
-// Put records or overwrites a key/value pair using the provided key and value.
-func (m *mapMemtableImpl) Put(key, value []byte) {
+// Put records or overwrites a key/value pair using the provided sequence number.
+// The sequence number must come from the DB's global counter.
+func (m *mapMemtableImpl) Put(key, value []byte, seq uint32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.next++
 	m.items[string(key)] = &common.Entry{
 		Type:  common.EntryTypePut,
-		Seq:   m.next,
+		Seq:   seq,
 		Value: value,
 	}
 }
 
-// Delete installs a tombstone for the given key.
-func (m *mapMemtableImpl) Delete(key []byte) {
+// Delete installs a tombstone for the given key using the provided sequence number.
+// The sequence number must come from the DB's global counter.
+func (m *mapMemtableImpl) Delete(key []byte, seq uint32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.next++
 	m.items[string(key)] = &common.Entry{
 		Type: common.EntryTypeDelete,
-		Seq:  m.next,
+		Seq:  seq,
 	}
 }
 

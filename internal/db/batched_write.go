@@ -43,9 +43,9 @@ func (d *DB) processBatch(batch []*writeRequest) error {
 	for _, req := range batch {
 		switch req.entry.Type {
 		case common.EntryTypePut:
-			mt.Put(req.entry.Key, req.entry.Value)
+			mt.Put(req.entry.Key, req.entry.Value, req.entry.Seq)
 		case common.EntryTypeDelete:
-			mt.Delete(req.entry.Key)
+			mt.Delete(req.entry.Key, req.entry.Seq)
 		}
 	}
 

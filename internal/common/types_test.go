@@ -121,3 +121,156 @@ func TestReadEntryIncomplete(t *testing.T) {
 		})
 	}
 }
+
+func TestCompareEntries(t *testing.T) {
+	tests := []struct {
+		name     string
+		e1       *Entry
+		e2       *Entry
+		expected int // negative if e1 < e2, 0 if equal, positive if e1 > e2
+	}{
+		{
+			name: "Different keys - e1 < e2",
+			e1: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("a"),
+				Value: []byte("1"),
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("b"),
+				Value: []byte("2"),
+			},
+			expected: -1, // "a" < "b"
+		},
+		{
+			name: "Different keys - e1 > e2",
+			e1: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("z"),
+				Value: []byte("1"),
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("a"),
+				Value: []byte("2"),
+			},
+			expected: 1, // "z" > "a"
+		},
+		{
+			name: "Same key, same seq",
+			e1: &Entry{
+				Type:  EntryTypePut,
+				Seq:   5,
+				Key:   []byte("key"),
+				Value: []byte("value1"),
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   5,
+				Key:   []byte("key"),
+				Value: []byte("value2"),
+			},
+			expected: 0, // Equal
+		},
+		{
+			name: "Same key, e1 has higher seq (e1 wins)",
+			e1: &Entry{
+				Type:  EntryTypePut,
+				Seq:   10,
+				Key:   []byte("key"),
+				Value: []byte("new"),
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   5,
+				Key:   []byte("key"),
+				Value: []byte("old"),
+			},
+			expected: -1, // Higher seq should be "less" (comes first)
+		},
+		{
+			name: "Same key, e2 has higher seq (e2 wins)",
+			e1: &Entry{
+				Type:  EntryTypePut,
+				Seq:   3,
+				Key:   []byte("key"),
+				Value: []byte("old"),
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   8,
+				Key:   []byte("key"),
+				Value: []byte("new"),
+			},
+			expected: 1, // Lower seq should be "greater" (comes after)
+		},
+		{
+			name: "Same key, different types, higher seq wins",
+			e1: &Entry{
+				Type:  EntryTypeDelete,
+				Seq:   10,
+				Key:   []byte("key"),
+				Value: nil,
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   5,
+				Key:   []byte("key"),
+				Value: []byte("value"),
+			},
+			expected: -1, // e1 has higher seq, so it wins
+		},
+		{
+			name: "Lexicographic ordering - longer key",
+			e1: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("apple"),
+				Value: []byte("1"),
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("app"),
+				Value: []byte("2"),
+			},
+			expected: 1, // "apple" > "app"
+		},
+		{
+			name: "Lexicographic ordering - prefix",
+			e1: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("app"),
+				Value: []byte("1"),
+			},
+			e2: &Entry{
+				Type:  EntryTypePut,
+				Seq:   1,
+				Key:   []byte("apple"),
+				Value: []byte("2"),
+			},
+			expected: -1, // "app" < "apple"
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CompareEntries(tt.e1, tt.e2)
+
+			// Check the sign of the result
+			if tt.expected < 0 {
+				require.Less(t, result, 0, "expected e1 < e2")
+			} else if tt.expected > 0 {
+				require.Greater(t, result, 0, "expected e1 > e2")
+			} else {
+				require.Equal(t, 0, result, "expected e1 == e2")
+			}
+		})
+	}
+}

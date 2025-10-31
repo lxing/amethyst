@@ -28,6 +28,7 @@ func printHelp() {
 	fmt.Println("  seed    <x>                          - load 26*x fruit/vegetable pairs")
 	fmt.Println("  inspect [memtable|file.log|file.sst] - inspect table")
 	fmt.Println("  dump    [memtable|file.log|file.sst] - dump table")
+	fmt.Println("  compact                              - compact L0 to L1")
 	fmt.Println("")
 	fmt.Println("  clear      - clear and reset the database")
 	fmt.Println("  help       - show this help")
@@ -194,6 +195,14 @@ func main() {
 			inspect(parts, ctx.engine)
 		case "dump":
 			dump(parts, ctx.engine)
+		case "compact":
+			start := time.Now()
+			if err := ctx.engine.CompactL0(); err != nil {
+				fmt.Printf("compact error: %v\n", err)
+				continue
+			}
+			common.LogDuration(start, "compact L0 → L1")
+			fmt.Println("ok")
 		case "clear":
 			if err := clearDatabase(ctx); err != nil {
 				fmt.Printf("clear error: %v\n", err)

@@ -16,7 +16,7 @@ func TestPutAndGet(t *testing.T) {
 
 	key := []byte("alpha")
 	value := []byte("value")
-	mt.Put(key, value)
+	mt.Put(key, value, 1)
 
 	require.Equal(t, 1, mt.Len())
 
@@ -24,6 +24,7 @@ func TestPutAndGet(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, common.EntryTypePut, entry.Type)
 	require.Equal(t, []byte("value"), entry.Value)
+	require.Equal(t, uint32(1), entry.Seq)
 
 	missing, ok := mt.Get([]byte("missing"))
 	require.False(t, ok)
@@ -36,26 +37,29 @@ func TestOverwriteAndDeleteSameKey(t *testing.T) {
 	key := []byte("duplicate")
 
 	// Store an initial value, then overwrite it.
-	mt.Put(key, []byte("v1"))
-	mt.Put(key, []byte("v2"))
+	mt.Put(key, []byte("v1"), 1)
+	mt.Put(key, []byte("v2"), 2)
 
 	entry, ok := mt.Get(key)
 	require.True(t, ok)
 	require.Equal(t, common.EntryTypePut, entry.Type)
 	require.Equal(t, []byte("v2"), entry.Value)
+	require.Equal(t, uint32(2), entry.Seq)
 
 	// Place a tombstone for the key.
-	mt.Delete(key)
+	mt.Delete(key, 3)
 	entry, ok = mt.Get(key)
 	require.True(t, ok)
 	require.Equal(t, common.EntryTypeDelete, entry.Type)
+	require.Equal(t, uint32(3), entry.Seq)
 
 	// Writing after a tombstone acts like a fresh put.
-	mt.Put(key, []byte("v3"))
+	mt.Put(key, []byte("v3"), 4)
 	entry, ok = mt.Get(key)
 	require.True(t, ok)
 	require.Equal(t, common.EntryTypePut, entry.Type)
 	require.Equal(t, []byte("v3"), entry.Value)
+	require.Equal(t, uint32(4), entry.Seq)
 }
 
 func TestBulkPutGetDelete(t *testing.T) {
@@ -70,8 +74,8 @@ func TestBulkPutGetDelete(t *testing.T) {
 		keyStr := fmt.Sprintf("key%d", i)
 		key := []byte(keyStr)
 		value := []byte(fmt.Sprintf("v%04d", i))
-		mt.Put(key, value)
 		nextSeq++
+		mt.Put(key, value, nextSeq)
 		expected[keyStr] = &common.Entry{
 			Type:  common.EntryTypePut,
 			Seq:   nextSeq,
@@ -85,8 +89,8 @@ func TestBulkPutGetDelete(t *testing.T) {
 		keyStr := fmt.Sprintf("key%d_deleted", i)
 		key := []byte(keyStr)
 		value := []byte(fmt.Sprintf("v%04d", i))
-		mt.Put(key, value)
 		nextSeq++
+		mt.Put(key, value, nextSeq)
 		expected[keyStr] = &common.Entry{
 			Type:  common.EntryTypePut,
 			Seq:   nextSeq,
@@ -117,8 +121,8 @@ func TestBulkPutGetDelete(t *testing.T) {
 	for i := n; i < 2*n; i++ {
 		keyStr := fmt.Sprintf("key%d_deleted", i)
 		key := []byte(keyStr)
-		mt.Delete(key)
 		nextSeq++
+		mt.Delete(key, nextSeq)
 		expected[keyStr].Type = common.EntryTypeDelete
 		expected[keyStr].Seq = nextSeq
 		expected[keyStr].Value = nil
@@ -128,8 +132,8 @@ func TestBulkPutGetDelete(t *testing.T) {
 	for i := 2 * n; i < 3*n; i++ {
 		keyStr := fmt.Sprintf("key%d_never_existed", i)
 		key := []byte(keyStr)
-		mt.Delete(key)
 		nextSeq++
+		mt.Delete(key, nextSeq)
 		expected[keyStr] = &common.Entry{
 			Type:  common.EntryTypeDelete,
 			Seq:   nextSeq,

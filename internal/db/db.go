@@ -121,7 +121,7 @@ func Open(optFns ...Option) (*DB, error) {
 	db.memtable.Store(&mt)
 	db.wal.Store(&log)
 	db.manifest.Store(&m)
-	db.compactionMgr = newCompactionManager(db)
+	db.compactionMgr = newCompactionManager(m, paths, &opts)
 
 	// Start background group commit loop
 	go db.groupCommitLoop()
@@ -153,9 +153,9 @@ func replayWAL(w *wal.WAL, mt memtable.Memtable) (uint32, error) {
 
 		switch entry.Type {
 		case common.EntryTypePut:
-			mt.Put(entry.Key, entry.Value)
+			mt.Put(entry.Key, entry.Value, entry.Seq)
 		case common.EntryTypeDelete:
-			mt.Delete(entry.Key)
+			mt.Delete(entry.Key, entry.Seq)
 		}
 	}
 
