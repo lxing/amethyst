@@ -29,14 +29,13 @@ func New[K comparable, V any](capacity int) *LRUCache[K, V] {
 	return c
 }
 
-func (c *LRUCache[K, V]) Get(key K) (V, bool) {
+func (c *LRUCache[K, V]) Get(key K) (value V, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var zero V
 	node, found := c.items[key]
 	if !found {
-		return zero, false
+		return
 	}
 
 	node.prev.next = node.next

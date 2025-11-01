@@ -21,10 +21,9 @@ func (h *Heap[K, V]) Len() int {
 	return len(h.items)
 }
 
-func (h *Heap[K, V]) Peek() (K, bool) {
-	var zero K
+func (h *Heap[K, V]) Peek() (key K, ok bool) {
 	if len(h.items) == 0 {
-		return zero, false
+		return
 	}
 	return h.items[0].key, true
 }
@@ -34,12 +33,9 @@ func (h *Heap[K, V]) Push(key K, value V) {
 	h.heapifyUp(len(h.items) - 1)
 }
 
-func (h *Heap[K, V]) Pop() (K, V, bool) {
-	var zeroK K
-	var zeroV V
-
+func (h *Heap[K, V]) Pop() (key K, value V, ok bool) {
 	if len(h.items) == 0 {
-		return zeroK, zeroV, false
+		return
 	}
 
 	top := h.items[0]
