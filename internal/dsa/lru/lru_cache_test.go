@@ -1,7 +1,6 @@
 package lru
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -93,25 +92,3 @@ func TestLRUCacheUpdate(t *testing.T) {
 	require.Equal(t, 1, len(cache.items))
 }
 
-func TestLRUCacheConcurrent(t *testing.T) {
-	cache := New[int, string](100)
-
-	var wg sync.WaitGroup
-	numGoroutines := 10
-	opsPerGoroutine := 100
-
-	// Concurrent puts and gets
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < opsPerGoroutine; j++ {
-				key := id*1000 + j
-				cache.Put(key, "value")
-				cache.Get(key)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-}

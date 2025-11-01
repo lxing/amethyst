@@ -11,7 +11,6 @@ import (
 	"amethyst/internal/block"
 	"amethyst/internal/common"
 	"amethyst/internal/dsa/bloom"
-	"amethyst/internal/dsa/lru"
 )
 
 var ErrNotFound = errors.New("key not found")
@@ -192,11 +191,6 @@ func WriteSSTable(
 	}, nil
 }
 
-type BlockKey struct {
-	FileNo  common.FileNo
-	BlockNo common.BlockNo
-}
-
 type SSTable struct {
 	file       *os.File
 	path       string
@@ -204,7 +198,7 @@ type SSTable struct {
 	footer     *Footer
 	filter     *bloom.BloomFilter
 	index      *Index
-	blockCache *lru.LRUCache[BlockKey, *block.Block]
+	blockCache *BlockCache
 }
 
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
@@ -268,7 +262,7 @@ func loadSSTableMetadata(f *os.File) (*Footer, *bloom.BloomFilter, *Index, error
 func OpenSSTable(
 	path string,
 	fileNo common.FileNo,
-	blockCache *lru.LRUCache[BlockKey, *block.Block],
+	blockCache *BlockCache,
 ) (*SSTable, error) {
 	f, err := os.Open(path)
 	if err != nil {

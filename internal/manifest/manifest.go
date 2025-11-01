@@ -7,9 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"amethyst/internal/block"
 	"amethyst/internal/common"
-	"amethyst/internal/dsa/lru"
 	"amethyst/internal/sstable"
 )
 
@@ -60,13 +58,13 @@ type Manifest struct {
 	tableCache map[common.FileNo]*sstable.SSTable
 
 	// Block cache: shared across all SSTables
-	blockCache *lru.LRUCache[sstable.BlockKey, *block.Block]
+	blockCache *sstable.BlockCache
 
 	// Path manager for all database files
 	paths *common.PathManager
 }
 
-func NewManifest(paths *common.PathManager, numLevels int, blockCache *lru.LRUCache[sstable.BlockKey, *block.Block]) *Manifest {
+func NewManifest(paths *common.PathManager, numLevels int, blockCache *sstable.BlockCache) *Manifest {
 	return &Manifest{
 		current: &Version{
 			Levels: make([][]FileMetadata, numLevels),
