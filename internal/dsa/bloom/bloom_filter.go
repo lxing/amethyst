@@ -1,12 +1,12 @@
-package filter
+package bloom
 
 import (
 	"hash/fnv"
 	"io"
 	"math"
 
-	"amethyst/internal/bitmap"
 	"amethyst/internal/common"
+	"amethyst/internal/dsa/bitmap"
 )
 
 // BloomFilter implements a space-efficient probabilistic data structure

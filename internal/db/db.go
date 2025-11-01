@@ -10,7 +10,7 @@ import (
 
 	"amethyst/internal/block"
 	"amethyst/internal/common"
-	"amethyst/internal/lru_cache"
+	"amethyst/internal/dsa/lru"
 	"amethyst/internal/manifest"
 	"amethyst/internal/memtable"
 	"amethyst/internal/sstable"
@@ -54,7 +54,7 @@ func Open(optFns ...Option) (*DB, error) {
 	}
 
 	// Create block cache shared by all SSTables
-	blockCache := lru_cache.New[sstable.BlockKey, *block.Block](opts.BlockCacheSize)
+	blockCache := lru.New[sstable.BlockKey, *block.Block](opts.BlockCacheSize)
 
 	// Try to load existing manifest
 	var m *manifest.Manifest

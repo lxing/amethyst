@@ -10,8 +10,8 @@ import (
 
 	"amethyst/internal/block"
 	"amethyst/internal/common"
-	"amethyst/internal/filter"
-	"amethyst/internal/lru_cache"
+	"amethyst/internal/dsa/bloom"
+	"amethyst/internal/dsa/lru"
 )
 
 var ErrNotFound = errors.New("key not found")
@@ -61,8 +61,8 @@ func WriteSSTable(
 	var largestKeyRef []byte
 
 	// Create bloom filter
-	k, m := filter.OptimalBloomFilterParams(sizeHint, fpr)
-	bloomFilter := filter.NewBloomFilter(k, m)
+	k, m := bloom.OptimalBloomFilterParams(sizeHint, fpr)
+	bloomFilter := bloom.NewBloomFilter(k, m)
 
 	// Block building state
 	var blockOffsets []uint16
@@ -157,7 +157,7 @@ func WriteSSTable(
 
 	// Write filter block
 	filterOffset := offset
-	n, err := filter.WriteBloomFilter(w, bloomFilter)
+	n, err := bloom.WriteBloomFilter(w, bloomFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -202,13 +202,13 @@ type SSTable struct {
 	path       string
 	fileNo     common.FileNo
 	footer     *Footer
-	filter     *filter.BloomFilter
+	filter     *bloom.BloomFilter
 	index      *Index
-	blockCache *lru_cache.LRUCache[BlockKey, *block.Block]
+	blockCache *lru.LRUCache[BlockKey, *block.Block]
 }
 
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
-func loadSSTableMetadata(f *os.File) (*Footer, *filter.BloomFilter, *Index, error) {
+func loadSSTableMetadata(f *os.File) (*Footer, *bloom.BloomFilter, *Index, error) {
 	// Get file size
 	stat, err := f.Stat()
 	if err != nil {
@@ -234,13 +234,13 @@ func loadSSTableMetadata(f *os.File) (*Footer, *filter.BloomFilter, *Index, erro
 
 	// Read filter block
 	filterSize := int64(footer.IndexOffset) - int64(footer.FilterOffset)
-	var bloomFilter *filter.BloomFilter
+	var bloomFilter *bloom.BloomFilter
 	if filterSize > 0 {
 		filterData := make([]byte, filterSize)
 		if _, err := f.ReadAt(filterData, int64(footer.FilterOffset)); err != nil {
 			return nil, nil, nil, err
 		}
-		bloomFilter, err = filter.ReadBloomFilter(bytes.NewReader(filterData))
+		bloomFilter, err = bloom.ReadBloomFilter(bytes.NewReader(filterData))
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -268,7 +268,7 @@ func loadSSTableMetadata(f *os.File) (*Footer, *filter.BloomFilter, *Index, erro
 func OpenSSTable(
 	path string,
 	fileNo common.FileNo,
-	blockCache *lru_cache.LRUCache[BlockKey, *block.Block],
+	blockCache *lru.LRUCache[BlockKey, *block.Block],
 ) (*SSTable, error) {
 	f, err := os.Open(path)
 	if err != nil {

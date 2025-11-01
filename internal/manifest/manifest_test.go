@@ -5,7 +5,7 @@ import (
 
 	"amethyst/internal/block"
 	"amethyst/internal/common"
-	"amethyst/internal/lru_cache"
+	"amethyst/internal/dsa/lru"
 	"amethyst/internal/sstable"
 
 	"github.com/stretchr/testify/require"
@@ -13,7 +13,7 @@ import (
 
 func TestNewManifest(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	cache := lru_cache.New[sstable.BlockKey, *block.Block](100)
+	cache := lru.New[sstable.BlockKey, *block.Block](100)
 	m := NewManifest(paths, 7, cache)
 	v := m.Current()
 	require.NotNil(t, v)
@@ -25,7 +25,7 @@ func TestNewManifest(t *testing.T) {
 
 func TestSetWAL(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	cache := lru_cache.New[sstable.BlockKey, *block.Block](100)
+	cache := lru.New[sstable.BlockKey, *block.Block](100)
 	m := NewManifest(paths, 7, cache)
 
 	// Set initial WAL
@@ -43,7 +43,7 @@ func TestSetWAL(t *testing.T) {
 
 func TestApplyCompactionEdit(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	cache := lru_cache.New[sstable.BlockKey, *block.Block](100)
+	cache := lru.New[sstable.BlockKey, *block.Block](100)
 	m := NewManifest(paths, 7, cache)
 
 	// Add tables to L0 and L1
@@ -86,7 +86,7 @@ func TestApplyCompactionEdit(t *testing.T) {
 
 func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	cache := lru_cache.New[sstable.BlockKey, *block.Block](100)
+	cache := lru.New[sstable.BlockKey, *block.Block](100)
 	m := NewManifest(paths, 7, cache)
 
 	// Add initial L0 and L1 tables
@@ -143,7 +143,7 @@ func TestApplyCompactionEditSimulateCompaction(t *testing.T) {
 
 func TestVersionIsolation(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	cache := lru_cache.New[sstable.BlockKey, *block.Block](100)
+	cache := lru.New[sstable.BlockKey, *block.Block](100)
 	m := NewManifest(paths, 7, cache)
 
 	// Add initial tables
@@ -185,7 +185,7 @@ func TestVersionIsolation(t *testing.T) {
 
 func TestNextSSTableNumberPreservation(t *testing.T) {
 	paths := common.NewPathManager("test_data")
-	cache := lru_cache.New[sstable.BlockKey, *block.Block](100)
+	cache := lru.New[sstable.BlockKey, *block.Block](100)
 	m := NewManifest(paths, 7, cache)
 
 	// Add tables with high file numbers

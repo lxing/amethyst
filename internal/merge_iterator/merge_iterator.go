@@ -4,7 +4,7 @@ import (
 	"bytes"
 
 	"amethyst/internal/common"
-	"amethyst/internal/heap"
+	"amethyst/internal/dsa/heap"
 )
 
 type MergeIterator struct {
