@@ -35,6 +35,9 @@ func (m *MergeIterator) Next() (*common.Entry, error) {
 		return nil, nil
 	}
 
+	// Deduplication: pop all entries with the same key as minEntry.
+	// Each pop advances its iterator and re-inserts if not exhausted.
+	// Only minEntry is returned (highest seq number for this key).
 	for {
 		_, iter, ok := m.heap.Pop()
 		if !ok {
