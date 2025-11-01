@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"amethyst/internal/common"
+	"amethyst/internal/dsa/batcher"
 	"amethyst/internal/manifest"
 	"amethyst/internal/memtable"
 	"amethyst/internal/sstable"
@@ -26,10 +27,10 @@ type DB struct {
 	wal      atomic.Pointer[*wal.WAL]
 	manifest atomic.Pointer[*manifest.Manifest]
 
-	Opts           Options
-	paths          *common.PathManager
-	writeChan      chan *writeRequest
-	compactionMgr  *compactionManager
+	Opts          Options
+	paths         *common.PathManager
+	batcher       *batcher.Batcher[*common.Entry]
+	compactionMgr *compactionManager
 }
 
 func Open(optFns ...Option) (*DB, error) {
@@ -112,18 +113,23 @@ func Open(optFns ...Option) (*DB, error) {
 	}
 
 	db := &DB{
-		nextSeq:   nextSeq,
-		Opts:      opts,
-		paths:     paths,
-		writeChan: make(chan *writeRequest, 100),
+		nextSeq: nextSeq,
+		Opts:    opts,
+		paths:   paths,
 	}
 	db.memtable.Store(&mt)
 	db.wal.Store(&log)
 	db.manifest.Store(&m)
 	db.compactionMgr = newCompactionManager(m, paths, &opts)
 
-	// Start background group commit loop
-	go db.groupCommitLoop()
+	// Start batched write handler
+	db.batcher = batcher.New(
+		opts.MaxBatchSize,
+		opts.BatchTimeout,
+		func(entries []*common.Entry) error {
+			return db.processBatch(entries)
+		},
+	)
 
 	return db, nil
 }
@@ -170,16 +176,10 @@ func (d *DB) Put(key, value []byte) error {
 		Type:  common.EntryTypePut,
 		Key:   bytes.Clone(key),
 		Value: bytes.Clone(value),
-		// Seq assigned by group commit loop
+		// Seq assigned by batcher
 	}
 
-	req := &writeRequest{
-		entry:    entry,
-		resultCh: make(chan error, 1),
-	}
-
-	d.writeChan <- req
-	return <-req.resultCh
+	return d.batcher.Submit(entry)
 }
 
 func (d *DB) Delete(key []byte) error {
@@ -190,16 +190,48 @@ func (d *DB) Delete(key []byte) error {
 	entry := &common.Entry{
 		Type: common.EntryTypeDelete,
 		Key:  bytes.Clone(key),
-		// Seq assigned by group commit loop
+		// Seq assigned by batcher
 	}
 
-	req := &writeRequest{
-		entry:    entry,
-		resultCh: make(chan error, 1),
+	return d.batcher.Submit(entry)
+}
+
+// Locking rationale:
+// - processBatch is single-threaded via batcher loop
+// - d.memtable/d.wal/d.manifest use atomic.Pointer for lock-free access
+// - memtable is internally thread-safe with its own lock
+// - d.nextSeq doesn't need lock (single writer)
+func (d *DB) processBatch(entries []*common.Entry) error {
+	// Check if flush needed (read-only on memtable)
+	if d.Memtable().Len() >= d.Opts.MemtableFlushThreshold {
+		if err := d.flushMemtable(); err != nil {
+			return err
+		}
 	}
 
-	d.writeChan <- req
-	return <-req.resultCh
+	// Assign sequence numbers to all entries in batch
+	for i := range entries {
+		d.nextSeq++
+		entries[i].Seq = d.nextSeq
+	}
+
+	// Write entire batch to WAL with single sync
+	if err := d.WAL().WriteEntry(entries); err != nil {
+		return err
+	}
+
+	// Update memtable (memtable internally locks for thread-safety)
+	mt := d.Memtable()
+	for _, entry := range entries {
+		switch entry.Type {
+		case common.EntryTypePut:
+			mt.Put(entry.Key, entry.Value, entry.Seq)
+		case common.EntryTypeDelete:
+			mt.Delete(entry.Key, entry.Seq)
+		}
+	}
+
+	return nil
 }
 
 func (d *DB) Get(key []byte) ([]byte, error) {
