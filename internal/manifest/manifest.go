@@ -7,8 +7,9 @@ import (
 	"os"
 	"sync"
 
-	"amethyst/internal/block_cache"
+	"amethyst/internal/block"
 	"amethyst/internal/common"
+	"amethyst/internal/lru_cache"
 	"amethyst/internal/sstable"
 )
 
@@ -59,14 +60,13 @@ type Manifest struct {
 	tableCache map[common.FileNo]*sstable.SSTable
 
 	// Block cache: shared across all SSTables
-	blockCache *block_cache.BlockCache
+	blockCache *lru_cache.LRUCache[sstable.BlockKey, *block.Block]
 
 	// Path manager for all database files
 	paths *common.PathManager
 }
 
-// NewManifest creates a new manifest with the given number of levels.
-func NewManifest(paths *common.PathManager, numLevels int, blockCache *block_cache.BlockCache) *Manifest {
+func NewManifest(paths *common.PathManager, numLevels int, blockCache *lru_cache.LRUCache[sstable.BlockKey, *block.Block]) *Manifest {
 	return &Manifest{
 		current: &Version{
 			Levels: make([][]FileMetadata, numLevels),

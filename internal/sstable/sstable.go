@@ -9,9 +9,9 @@ import (
 	"os"
 
 	"amethyst/internal/block"
-	"amethyst/internal/block_cache"
 	"amethyst/internal/common"
 	"amethyst/internal/filter"
+	"amethyst/internal/lru_cache"
 )
 
 var ErrNotFound = errors.New("key not found")
@@ -192,15 +192,19 @@ func WriteSSTable(
 	}, nil
 }
 
-// SSTable provides random access to entries in an SSTable file.
+type BlockKey struct {
+	FileNo  common.FileNo
+	BlockNo common.BlockNo
+}
+
 type SSTable struct {
 	file       *os.File
-	path       string // File path (stored for error messages)
+	path       string
 	fileNo     common.FileNo
 	footer     *Footer
 	filter     *filter.BloomFilter
 	index      *Index
-	blockCache *block_cache.BlockCache
+	blockCache *lru_cache.LRUCache[BlockKey, *block.Block]
 }
 
 // loadSSTableMetadata reads and parses the footer, filter, and index from an open SSTable file.
@@ -261,11 +265,10 @@ func loadSSTableMetadata(f *os.File) (*Footer, *filter.BloomFilter, *Index, erro
 	return footer, bloomFilter, index, nil
 }
 
-// OpenSSTable opens an SSTable file and loads its footer and index into memory.
 func OpenSSTable(
 	path string,
 	fileNo common.FileNo,
-	blockCache *block_cache.BlockCache,
+	blockCache *lru_cache.LRUCache[BlockKey, *block.Block],
 ) (*SSTable, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -320,9 +323,10 @@ func (s *SSTable) Get(key []byte) (*common.Entry, error) {
 	// Try to get block from cache
 	var blk *block.Block
 	blockNo := common.BlockNo(blockIdx)
+	cacheKey := BlockKey{FileNo: s.fileNo, BlockNo: blockNo}
 
 	if s.blockCache != nil {
-		if cachedBlock, ok := s.blockCache.Get(s.fileNo, blockNo); ok {
+		if cachedBlock, ok := s.blockCache.Get(cacheKey); ok {
 			blk = cachedBlock
 		}
 	}
@@ -352,7 +356,7 @@ func (s *SSTable) Get(key []byte) (*common.Entry, error) {
 
 		// Cache the parsed block if cache is available
 		if s.blockCache != nil {
-			s.blockCache.Put(s.fileNo, blockNo, blk)
+			s.blockCache.Put(cacheKey, blk)
 		}
 	}
 

@@ -8,8 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"amethyst/internal/block_cache"
+	"amethyst/internal/block"
 	"amethyst/internal/common"
+	"amethyst/internal/lru_cache"
 	"amethyst/internal/manifest"
 	"amethyst/internal/memtable"
 	"amethyst/internal/sstable"
@@ -53,7 +54,7 @@ func Open(optFns ...Option) (*DB, error) {
 	}
 
 	// Create block cache shared by all SSTables
-	blockCache := block_cache.NewBlockCache(opts.BlockCacheSize)
+	blockCache := lru_cache.New[sstable.BlockKey, *block.Block](opts.BlockCacheSize)
 
 	// Try to load existing manifest
 	var m *manifest.Manifest
