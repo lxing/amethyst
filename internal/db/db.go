@@ -134,38 +134,19 @@ func Open(optFns ...Option) (*DB, error) {
 	return db, nil
 }
 
-// replayWAL replays all entries from the WAL into the memtable.
-// Returns the highest sequence number seen.
-func replayWAL(w *wal.WAL, mt memtable.Memtable) (uint32, error) {
-	iter, err := w.Iterator()
-	if err != nil {
-		return 0, err
-	}
+// Close stops all database operations and releases resources.
+// Currently a stub for future cleanup (closing WAL, flushing buffers, etc.)
+func (d *DB) Close() error {
+	// TODO: Close WAL
+	// TODO: Close manifest (which closes table cache)
+	// TODO: Flush any pending writes
 
-	var maxSeq uint32
-	for {
-		entry, err := iter.Next()
-		if err != nil {
-			return 0, err
-		}
-		if entry == nil {
-			break
-		}
-
-		if entry.Seq > maxSeq {
-			maxSeq = entry.Seq
-		}
-
-		switch entry.Type {
-		case common.EntryTypePut:
-			mt.Put(entry.Key, entry.Value, entry.Seq)
-		case common.EntryTypeDelete:
-			mt.Delete(entry.Key, entry.Seq)
-		}
-	}
-
-	return maxSeq, nil
+	return nil
 }
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 func (d *DB) Put(key, value []byte) error {
 	if len(key) == 0 {
@@ -194,44 +175,6 @@ func (d *DB) Delete(key []byte) error {
 	}
 
 	return d.batcher.Submit(entry)
-}
-
-// Locking rationale:
-// - processBatch is single-threaded via batcher loop
-// - d.memtable/d.wal/d.manifest use atomic.Pointer for lock-free access
-// - memtable is internally thread-safe with its own lock
-// - d.nextSeq doesn't need lock (single writer)
-func (d *DB) processBatch(entries []*common.Entry) error {
-	// Check if flush needed (read-only on memtable)
-	if d.Memtable().Len() >= d.Opts.MemtableFlushThreshold {
-		if err := d.flushMemtable(); err != nil {
-			return err
-		}
-	}
-
-	// Assign sequence numbers to all entries in batch
-	for i := range entries {
-		d.nextSeq++
-		entries[i].Seq = d.nextSeq
-	}
-
-	// Write entire batch to WAL with single sync
-	if err := d.WAL().WriteEntry(entries); err != nil {
-		return err
-	}
-
-	// Update memtable (memtable internally locks for thread-safety)
-	mt := d.Memtable()
-	for _, entry := range entries {
-		switch entry.Type {
-		case common.EntryTypePut:
-			mt.Put(entry.Key, entry.Value, entry.Seq)
-		case common.EntryTypeDelete:
-			mt.Delete(entry.Key, entry.Seq)
-		}
-	}
-
-	return nil
 }
 
 func (d *DB) Get(key []byte) ([]byte, error) {
@@ -291,6 +234,101 @@ func (d *DB) Get(key []byte) ([]byte, error) {
 	}
 
 	return nil, ErrNotFound
+}
+
+// ============================================================================
+// CLI Accessors (for adb inspect commands)
+// ============================================================================
+
+func (d *DB) Memtable() memtable.Memtable {
+	return *d.memtable.Load()
+}
+
+func (d *DB) WAL() *wal.WAL {
+	return *d.wal.Load()
+}
+
+func (d *DB) Manifest() *manifest.Manifest {
+	return *d.manifest.Load()
+}
+
+func (d *DB) Paths() *common.PathManager {
+	return d.paths
+}
+
+// ============================================================================
+// Internal functions
+// ============================================================================
+
+// replayWAL replays all entries from the WAL into the memtable.
+// Returns the highest sequence number seen.
+func replayWAL(w *wal.WAL, mt memtable.Memtable) (uint32, error) {
+	iter, err := w.Iterator()
+	if err != nil {
+		return 0, err
+	}
+
+	var maxSeq uint32
+	for {
+		entry, err := iter.Next()
+		if err != nil {
+			return 0, err
+		}
+		if entry == nil {
+			break
+		}
+
+		if entry.Seq > maxSeq {
+			maxSeq = entry.Seq
+		}
+
+		switch entry.Type {
+		case common.EntryTypePut:
+			mt.Put(entry.Key, entry.Value, entry.Seq)
+		case common.EntryTypeDelete:
+			mt.Delete(entry.Key, entry.Seq)
+		}
+	}
+
+	return maxSeq, nil
+}
+
+// Locking rationale:
+// - processBatch is single-threaded via batcher loop
+// - d.memtable/d.wal/d.manifest use atomic.Pointer for lock-free access
+// - memtable is internally thread-safe with its own lock
+// - d.nextSeq doesn't need lock (single writer)
+func (d *DB) processBatch(entries []*common.Entry) error {
+	// Check if flush needed (read-only on memtable)
+	if d.Memtable().Len() >= d.Opts.MemtableFlushThreshold {
+		if err := d.flushMemtable(); err != nil {
+			return err
+		}
+	}
+
+	// Assign sequence numbers to all entries in batch
+	for i := range entries {
+		d.nextSeq++
+		entries[i].Seq = d.nextSeq
+	}
+
+	// Write entire batch to WAL with single sync
+	if err := d.WAL().WriteEntry(entries); err != nil {
+		return err
+	}
+
+	// Update memtable (memtable internally locks for thread-safety)
+	mt := d.Memtable()
+	for _, entry := range entries {
+		switch entry.Type {
+		case common.EntryTypePut:
+			mt.Put(entry.Key, entry.Value, entry.Seq)
+		case common.EntryTypeDelete:
+			mt.Delete(entry.Key, entry.Seq)
+		}
+	}
+
+	return nil
 }
 
 // flushMemtable writes the current memtable to an SSTable and rotates the WAL.
@@ -378,31 +416,5 @@ func (d *DB) writeSSTable() error {
 	m.Apply(edit)
 
 	common.LogDuration(start, "  flushed %d entries to %d.sst", result.EntryCount, fileNo)
-	return nil
-}
-
-func (d *DB) Memtable() memtable.Memtable {
-	return *d.memtable.Load()
-}
-
-func (d *DB) WAL() *wal.WAL {
-	return *d.wal.Load()
-}
-
-func (d *DB) Manifest() *manifest.Manifest {
-	return *d.manifest.Load()
-}
-
-func (d *DB) Paths() *common.PathManager {
-	return d.paths
-}
-
-// Close stops all database operations and releases resources.
-// Currently a stub for future cleanup (closing WAL, flushing buffers, etc.)
-func (d *DB) Close() error {
-	// TODO: Close WAL
-	// TODO: Close manifest (which closes table cache)
-	// TODO: Flush any pending writes
-
 	return nil
 }
