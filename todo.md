@@ -37,6 +37,8 @@
 - [ ] Compaction scheduler
   - Level-based compaction policy
   - Background goroutine for compaction tasks
+  - Serialize compaction with memtable flush (shared worker, LevelDB-style);
+    both currently take `NextSSTableNumber` unreserved — see `compaction.go`
 
 ### Database Lifecycle
 - [ ] DB.Close() implementation
@@ -44,6 +46,9 @@
   - Close manifest and table cache
   - Flush pending writes
   - Release file descriptors
+
+- [ ] LOCK file so only one process opens a DB directory at a time
+  - `cmd/loadgen` and the adb REPL can currently open the same DB concurrently
 
 - [ ] Version and SSTable lifecycle management
   - Clean up old versions

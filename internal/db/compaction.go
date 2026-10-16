@@ -35,6 +35,11 @@ func newCompactionManager(m *manifest.Manifest, paths *common.PathManager, opts 
 // TODO: File lifecycle - when to delete old SSTable files?
 // TODO: Reference counting on Versions to prevent deleting files in use
 // TODO: Background worker for automatic compaction
+// TODO: Serialize compaction with memtable flush (e.g. run both on one background
+// worker, LevelDB-style). Today flush runs on the batcher goroutine and CompactL0 on
+// the caller's; both take v.NextSSTableNumber without reserving it, so overlapping
+// them can create the same file number and truncate one output. Safe only while
+// callers guarantee no writes are in flight (e.g. the adb REPL, which is sequential).
 // TODO: Metrics and monitoring
 func (d *DB) CompactL0() error {
 	return d.compactionMgr.compactL0()
