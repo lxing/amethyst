@@ -95,6 +95,11 @@ func runCmd(args []string) error {
 	interval := fs.Duration("stats", time.Second, "stats print interval")
 	from := fs.String("from", "", "restore this checkpoint before running")
 	save := fs.String("save", "", "save a checkpoint with this name after stopping")
+	// Fatter than the engine defaults so sustained load doesn't hammer the
+	// filesystem: fewer WAL rotations/SSTables and fewer fsyncs per second.
+	flushThreshold := fs.Int("flush-threshold", 1024, "memtable entries before flush (and WAL rotation)")
+	batchSize := fs.Int("batch-size", 256, "max writes per group commit (fsync); capped in practice by -workers")
+	batchTimeout := fs.Duration("batch-timeout", 20*time.Millisecond, "max wait to fill a group commit; adds up to this much write latency")
 	fs.Parse(args)
 
 	cfg := loadgen.Config{
@@ -121,7 +126,12 @@ func runCmd(args []string) error {
 
 	// Per-op engine logging would drown the stats line.
 	common.LoggingEnabled = false
-	engine, err := db.Open(db.WithDBPath(*dbDir))
+	engine, err := db.Open(
+		db.WithDBPath(*dbDir),
+		db.WithMemtableFlushThreshold(*flushThreshold),
+		db.WithMaxBatchSize(*batchSize),
+		db.WithBatchTimeout(*batchTimeout),
+	)
 	if err != nil {
 		return err
 	}

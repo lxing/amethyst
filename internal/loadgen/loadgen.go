@@ -79,11 +79,11 @@ const (
 
 // Config is the live-adjustable workload description.
 type Config struct {
-	Rate      int         // target ops/sec across all workers; 0 = as fast as possible
-	Mix       [numOps]int // relative weights per Op
-	Dist      Dist        // key choice for update/delete/get
-	Order     Order       // key layout for inserts (and the space other ops draw from)
-	ValueSize int         // bytes per value (minimum is the self-describing prefix)
+	Rate      int         `json:"rate"`       // target ops/sec across all workers; 0 = as fast as possible
+	Mix       [numOps]int `json:"mix"`        // relative weights per Op: insert, update, delete, get
+	Dist      Dist        `json:"dist"`       // key choice for update/delete/get
+	Order     Order       `json:"order"`      // key layout for inserts (and the space other ops draw from)
+	ValueSize int         `json:"value_size"` // bytes per value (minimum is the self-describing prefix)
 }
 
 // DefaultConfig flushes a 256-entry memtable a couple of times a second and
@@ -241,6 +241,7 @@ type Generator struct {
 	running   bool
 	workers   int
 	startedAt time.Time
+	stoppedAt time.Time
 	stopCh    chan struct{}
 	tokens    chan struct{}
 	wg        sync.WaitGroup
@@ -306,6 +307,7 @@ func (g *Generator) Stop() {
 	close(g.stopCh)
 	g.wg.Wait()
 	g.running = false
+	g.stoppedAt = time.Now()
 }
 
 // Running reports whether workers are active.
@@ -337,7 +339,7 @@ func (g *Generator) KeySpace() KeySpace {
 // Stats returns a copy of the current run's counters.
 func (g *Generator) Stats() Stats {
 	g.mu.Lock()
-	running, workers, startedAt := g.running, g.workers, g.startedAt
+	running, workers, startedAt, stoppedAt := g.running, g.workers, g.startedAt, g.stoppedAt
 	g.mu.Unlock()
 
 	s := Stats{
@@ -349,8 +351,12 @@ func (g *Generator) Stats() Stats {
 		Corrupt:  g.corrupt.Load(),
 		Keys:     g.KeySpace(),
 	}
-	if !startedAt.IsZero() {
+	// Elapsed freezes once the run stops, so an idle generator's stats are stable.
+	switch {
+	case running:
 		s.Elapsed = time.Since(startedAt)
+	case !startedAt.IsZero():
+		s.Elapsed = stoppedAt.Sub(startedAt)
 	}
 	for op := range g.ops {
 		c := &g.ops[op]
